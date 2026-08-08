@@ -29,6 +29,9 @@
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   },
+  "overrides": {
+    "undici": "6.28.0"
+  },
   "engines": {
     "node": ">=20"
   }

@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import { decideNextAction } from './behavior';
 
 export const decideAfterInfluence = internalAction({
@@ -17,7 +17,7 @@ export const decideAfterInfluence = internalAction({
       hasAvailablePeer: true,
     });
     if (next.kind === 'browse') {
-      await ctx.runAction(api.launchTown.browserRunner.runForResident, {
+      await ctx.runAction(internal.launchTown.browserRunner.runForResident, {
         ...args,
         objective: `Evaluate ${context.product.name} after a trusted conversation`,
       });

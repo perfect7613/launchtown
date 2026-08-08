@@ -125,7 +125,7 @@ export const agentDoSomething = internalAction({
       : ({ kind: 'idle', visitProbability: 0 } as const);
 
     if (nextAction.kind === 'browse' && !recentActivity) {
-      await ctx.runAction(api.launchTown.browserRunner.runForResident, {
+      await ctx.runAction(internal.launchTown.browserRunner.runForResident, {
         productId: behaviorContext!.product._id,
         residentKey: behaviorContext!.state.residentKey,
         objective: `Evaluate ${behaviorContext!.product.name} using current beliefs and social context`,
