@@ -47,6 +47,9 @@ export interface LiveBrowserRun {
   };
   createdAt: number;
   updatedAt: number;
+  sessionId?: string;
+  sessionStatus?: 'PENDING' | 'RUNNING' | 'ERROR' | 'TIMED_OUT' | 'COMPLETED';
+  source?: 'live' | 'fallback' | 'error';
 }
 export interface LiveInfluenceEvent {
   speaker: string;

@@ -10,6 +10,16 @@ export interface ExistingGeneration {
 
 export type GenerationDecision = 'complete' | 'running' | 'exhausted' | 'granted';
 
+export type SimulationRunStatus =
+  | 'running'
+  | 'simulation_complete'
+  | 'completed'
+  | 'failed';
+
+export function latestRunAllowsReport(status: SimulationRunStatus | undefined): boolean {
+  return status === 'completed';
+}
+
 export function hasRequiredRecommendationCount(artifact: {
   recommendations: readonly unknown[];
 }): boolean {

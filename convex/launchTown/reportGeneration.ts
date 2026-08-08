@@ -4,6 +4,7 @@ import { reportArtifactValidator } from './reportArtifactValidator';
 import {
   decideGeneration,
   hasRequiredRecommendationCount,
+  latestRunAllowsReport,
   REPORT_LEASE_MS,
 } from './reportGenerationPolicy';
 
@@ -23,11 +24,14 @@ export const begin = mutation({
     authorize(gateSecret);
     const product = await ctx.db.get(productId);
     if (!product) return { state: 'not_found' as const };
-    const phase = await ctx.db
-      .query('scenarioPhases')
+    const runs = await ctx.db
+      .query('simulationRuns')
       .withIndex('product', (q) => q.eq('productId', productId))
-      .unique();
-    if (!phase || phase.phase !== 'complete') return { state: 'not_ready' as const };
+      .order('desc')
+      .collect();
+    if (!latestRunAllowsReport(runs[0]?.status)) {
+      return { state: 'not_ready' as const };
+    }
 
     const existing = await ctx.db
       .query('launchReports')

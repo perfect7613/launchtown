@@ -1,18 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   BrowserbaseStagehandJourneyRunner,
+  type BrowserbaseClient,
   type StagehandDriver,
 } from "../src/browserbaseJourneyRunner.js";
 
-const jsonResponse = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-
 const output = {
   outcome: "Reviewed the public page and left.",
-  pagesVisited: ["https://example.com"],
+  pagesVisited: ["https://maya.example"],
   converted: false,
   frictions: [],
   positiveSignals: ["The purpose was clear"],
@@ -21,95 +16,112 @@ const output = {
   shareLikelihood: 0.2,
 };
 
+function client(sessionIds = ["session-1"], statuses = ["RUNNING", "COMPLETED"]): BrowserbaseClient {
+  let index = 0;
+  let statusIndex = 0;
+  return {
+    sessions: {
+      create: vi.fn(async () => ({ id: sessionIds[index++]! })),
+      retrieve: vi.fn(async () => ({
+        status: statuses[Math.min(statusIndex++, statuses.length - 1)]!,
+      })),
+      update: vi.fn(async () => ({})),
+    },
+  };
+}
+
+const context = (personaKey: string) => ({
+  simulationRunId: "run-123",
+  productId: "product-456",
+  productUrl: "https://maya.example/research",
+  personaKey,
+});
+
 describe("BrowserbaseStagehandJourneyRunner", () => {
-  it("creates an unrecorded five-minute session and returns its live view", async () => {
-    const liveViewUrl = "https://www.browserbase.com/live?credential=secret";
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ id: "session-1" }, 201))
-      .mockResolvedValueOnce(
-        jsonResponse({ debuggerFullscreenUrl: liveViewUrl }),
-      );
+  it("creates one SDK session per persona with safe metadata and locked domains", async () => {
+    const browserbaseClient = client(["session-priya", "session-rohan"]);
     const runner = new BrowserbaseStagehandJourneyRunner({
       browserbaseApiKey: "bb-key",
       browserbaseProjectId: "project-1",
       anthropicApiKey: "anthropic-key",
-      fetch: fetcher,
+      approvedVerificationDomains: ["status.maya.example"],
+      browserbaseClient,
     });
 
-    await expect(runner.createRun("Browse naturally.")).resolves.toEqual({
-      runId: "session-1",
-      sessionId: "session-1",
-      status: "running",
-      cursor: 0,
-      liveViewUrl,
-      taskPrompt: "Browse naturally.",
-    });
+    const priya = await runner.createRun("Browse naturally.", context("priya"));
+    const rohan = await runner.createRun("Browse naturally.", context("rohan"));
 
-    const [url, init] = fetcher.mock.calls[0] ?? [];
-    expect(url).toBe("https://api.browserbase.com/v1/sessions");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(priya.sessionId).toBe("session-priya");
+    expect(rohan.sessionId).toBe("session-rohan");
+    expect(priya.sessionId).not.toBe(rohan.sessionId);
+    expect(browserbaseClient.sessions.create).toHaveBeenNthCalledWith(1, {
       projectId: "project-1",
       timeout: 300,
       keepAlive: false,
       proxies: false,
-      browserSettings: { recordSession: false, logSession: false },
+      userMetadata: { run: "run-123", product: "product-456", persona: "priya" },
+      browserSettings: {
+        allowedDomains: ["maya.example", "status.maya.example"],
+        recordSession: false,
+        logSession: false,
+      },
     });
+    expect(JSON.stringify(priya)).not.toContain("connectUrl");
+    expect(JSON.stringify(priya)).not.toContain("debug");
   });
 
-  it("drives Stagehand with direct Claude output and releases promptly", async () => {
-    const liveViewUrl = "https://www.browserbase.com/live?credential=secret";
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({}));
+  it("drives Stagehand, retrieves status, and requests release", async () => {
+    const browserbaseClient = client();
     const driver: StagehandDriver = {
       init: vi.fn().mockResolvedValue(undefined),
       execute: vi.fn().mockResolvedValue(output),
       close: vi.fn().mockResolvedValue(undefined),
     };
     const factory = vi.fn(() => driver);
-    const onBrowserReady = vi.fn();
     const runner = new BrowserbaseStagehandJourneyRunner({
       browserbaseApiKey: "bb-key",
       browserbaseProjectId: "project-1",
       anthropicApiKey: "anthropic-key",
-      fetch: fetcher,
+      browserbaseClient,
       stagehandDriverFactory: factory,
     });
-    const handle = {
+    const handle = await runner.createRun("Browse naturally.", context("priya"));
+
+    await expect(runner.waitForCompletion(handle)).resolves.toEqual({
       runId: "session-1",
-      sessionId: "session-1",
-      status: "running" as const,
-      cursor: 0,
-      liveViewUrl,
-      taskPrompt: "Browse naturally.",
-    };
-
-    await expect(
-      runner.waitForCompletion(handle, { onBrowserReady }),
-    ).resolves.toEqual({ runId: "session-1", liveViewUrl, output });
-
-    expect(onBrowserReady).toHaveBeenCalledWith(liveViewUrl);
-    expect(factory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        browserbaseSessionId: "session-1",
-        browserbaseApiKey: "bb-key",
-        browserbaseProjectId: "project-1",
-        anthropicApiKey: "anthropic-key",
-        model: "anthropic/claude-sonnet-4-6",
-      }),
-    );
-    expect(driver.init).toHaveBeenCalledOnce();
-    expect(driver.execute).toHaveBeenCalledWith(
-      "Browse naturally.",
-      expect.any(AbortSignal),
-    );
+      sessionStatus: "COMPLETED",
+      output,
+    });
     expect(driver.close).toHaveBeenCalledOnce();
-    expect(fetcher).toHaveBeenCalledWith(
-      "https://api.browserbase.com/v1/sessions/session-1",
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(browserbaseClient.sessions.retrieve).toHaveBeenCalledTimes(2);
+    expect(browserbaseClient.sessions.update).toHaveBeenCalledWith("session-1", {
+      status: "REQUEST_RELEASE",
+      projectId: "project-1",
+    });
   });
 
-  it("rejects a session timeout above the free-plan cap", () => {
+  it("does not create a replacement session when a persona journey fails", async () => {
+    const browserbaseClient = client();
+    const driver: StagehandDriver = {
+      init: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockRejectedValue(new Error("journey failed")),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const runner = new BrowserbaseStagehandJourneyRunner({
+      browserbaseApiKey: "bb-key",
+      browserbaseProjectId: "project-1",
+      anthropicApiKey: "anthropic-key",
+      browserbaseClient,
+      stagehandDriverFactory: () => driver,
+    });
+    const handle = await runner.createRun("Browse naturally.", context("priya"));
+
+    await expect(runner.waitForCompletion(handle)).rejects.toThrow("journey failed");
+    expect(browserbaseClient.sessions.create).toHaveBeenCalledOnce();
+    expect(browserbaseClient.sessions.update).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a session timeout above the plan cap", () => {
     expect(
       () =>
         new BrowserbaseStagehandJourneyRunner({

@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation, internalQuery } from '../_generated/server';
-import { browserResult } from './validators';
+import { browserResult, browserRunSource, browserSessionStatus } from './validators';
+import { uniquePersonaKeys } from './browserRunPolicy';
 
 export const loadBrowserContext = internalQuery({
   args: { productId: v.id('products'), residentKey: v.string() },
@@ -34,6 +35,7 @@ export const createBrowserRun = internalMutation({
     productId: v.id('products'),
     residentKey: v.string(),
     objective: v.string(),
+    simulationRunId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -58,10 +60,29 @@ export const updateBrowserRun = internalMutation({
       v.literal('failed'),
     ),
     runId: v.optional(v.string()),
-    liveViewUrl: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    sessionStatus: v.optional(browserSessionStatus),
+    source: v.optional(browserRunSource),
   },
   handler: async (ctx, { browserRunId, ...patch }) => {
     await ctx.db.patch(browserRunId, { ...patch, updatedAt: Date.now() });
+  },
+});
+
+export const markBrowserRunFailed = internalMutation({
+  args: {
+    browserRunId: v.id('browserRuns'),
+    source: browserRunSource,
+    sessionId: v.optional(v.string()),
+    sessionStatus: v.optional(browserSessionStatus),
+    fallbackNotice: v.optional(v.string()),
+  },
+  handler: async (ctx, { browserRunId, ...patch }) => {
+    await ctx.db.patch(browserRunId, {
+      ...patch,
+      status: 'failed',
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -70,6 +91,9 @@ export const applyBrowserResult = internalMutation({
     browserRunId: v.id('browserRuns'),
     output: browserResult,
     fallbackNotice: v.optional(v.string()),
+    source: browserRunSource,
+    sessionId: v.optional(v.string()),
+    sessionStatus: v.optional(browserSessionStatus),
     embedding: v.array(v.float64()),
   },
   handler: async (ctx, args) => {
@@ -105,6 +129,9 @@ export const applyBrowserResult = internalMutation({
       status: 'completed',
       result: args.output,
       fallbackNotice: args.fallbackNotice,
+      source: args.source,
+      sessionId: args.sessionId,
+      sessionStatus: args.sessionStatus,
       updatedAt: Date.now(),
     });
 
@@ -142,5 +169,16 @@ export const applyBrowserResult = internalMutation({
       });
     }
     return { trust, purchaseIntent };
+  },
+});
+
+export const listPersonaKeys = internalQuery({
+  args: { productId: v.id('products') },
+  handler: async (ctx, { productId }) => {
+    const profiles = await ctx.db
+      .query('residentProfiles')
+      .withIndex('product', (q) => q.eq('productId', productId))
+      .collect();
+    return uniquePersonaKeys(profiles.map((profile) => profile.residentKey));
   },
 });

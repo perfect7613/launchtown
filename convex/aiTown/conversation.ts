@@ -11,6 +11,10 @@ import { Game } from './game';
 import { stopPlayer, blocked, movePlayer } from './movement';
 import { ConversationMembership, serializedConversationMembership } from './conversationMembership';
 import { parseMap, serializeMap } from '../util/object';
+import {
+  MAX_SIMULATION_CONVERSATIONS,
+  simulationIsComplete,
+} from './simulationControl';
 
 export class Conversation {
   id: GameId<'conversations'>;
@@ -75,6 +79,13 @@ export class Conversation {
 
         member1.status = { kind: 'participating', started: now };
         member2.status = { kind: 'participating', started: now };
+        const control = game.world.simulationControl;
+        if (control) {
+          control.conversationStarts += 1;
+          control.participantIds = [
+            ...new Set([...control.participantIds, playerId1, playerId2]),
+          ];
+        }
 
         // Try to move the first player to grid point nearest the other player.
         const neighbors = (p: Point) => [
@@ -131,6 +142,26 @@ export class Conversation {
     }
     if ([...game.world.conversations.values()].find((c) => c.participants.has(invitee.id))) {
       const reason = `Player ${player.id} is already in a conversation`;
+      console.log(reason);
+      return { error: reason };
+    }
+    const control = game.world.simulationControl;
+    if (control && simulationIsComplete(control, now)) {
+      const reason = `Simulation is complete`;
+      console.log(reason);
+      return { error: reason };
+    }
+    const pendingConversations = [...game.world.conversations.values()].filter((conversation) =>
+      [...conversation.participants.values()].every(
+        (participant) => participant.status.kind !== 'participating',
+      ),
+    ).length;
+    if (
+      control &&
+      control.conversationStarts + pendingConversations >=
+        MAX_SIMULATION_CONVERSATIONS
+    ) {
+      const reason = `Simulation conversation limit reached`;
       console.log(reason);
       return { error: reason };
     }

@@ -7,6 +7,7 @@ test('exposes the four mounted read-only evidence views', async () => {
     getBrowserRuns: async (id) => [{ id, residentKey: 'priya' }],
     getResidentStates: async (id) => ({ id, residents: ['priya', 'rohan'] }),
     getMemories: async (id) => [{ id, type: 'productExperience' }],
+    getSimulationRun: async (id) => ({ id, status: 'completed' }),
   };
   const tools = createReportToolHandlers(repository, productId);
 

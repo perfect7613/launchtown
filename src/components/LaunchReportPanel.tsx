@@ -17,6 +17,7 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
@@ -102,6 +103,33 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
     URL.revokeObjectURL(blobUrl);
   };
 
+  const downloadPdf = async () => {
+    if (!report) return;
+    setDownloadingPdf(true);
+    setError(undefined);
+    try {
+      const response = await fetch('/api/launch-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, format: 'pdf' }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Unable to download PDF');
+      }
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = `${report.productName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-launch-report.pdf`;
+      anchor.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to download PDF');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   return (
     <div
       ref={dialogRef}
@@ -132,6 +160,14 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
           <div className="flex gap-2">
             {report && (
               <>
+                <button
+                  type="button"
+                  className="rounded bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-60"
+                  onClick={() => void downloadPdf()}
+                  disabled={downloadingPdf}
+                >
+                  {downloadingPdf ? 'Preparing PDF…' : 'Download PDF'}
+                </button>
                 <button
                   type="button"
                   className="rounded border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800"

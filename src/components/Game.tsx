@@ -99,6 +99,7 @@ export default function Game() {
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
       <MetricsBar
+        engineId={engineId}
         playerNames={allNames}
         followedName={followedSnapshot?.resident}
         onFollowCascade={followCascade}

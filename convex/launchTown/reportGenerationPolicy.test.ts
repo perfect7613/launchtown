@@ -3,6 +3,7 @@ import {
   hasRequiredRecommendationCount,
   MAX_REPORT_ATTEMPTS,
   REPORT_LEASE_MS,
+  latestRunAllowsReport,
 } from './reportGenerationPolicy';
 
 const now = 1_000_000;
@@ -67,4 +68,12 @@ test('accepts exactly three persisted recommendations', () => {
   expect(hasRequiredRecommendationCount({ recommendations: [{}, {}, {}] })).toBe(true);
   expect(hasRequiredRecommendationCount({ recommendations: [{}, {}] })).toBe(false);
   expect(hasRequiredRecommendationCount({ recommendations: [{}, {}, {}, {}] })).toBe(false);
+});
+
+test('allows reports only for the latest terminal completed run', () => {
+  expect(latestRunAllowsReport('completed')).toBe(true);
+  expect(latestRunAllowsReport('running')).toBe(false);
+  expect(latestRunAllowsReport('simulation_complete')).toBe(false);
+  expect(latestRunAllowsReport('failed')).toBe(false);
+  expect(latestRunAllowsReport(undefined)).toBe(false);
 });

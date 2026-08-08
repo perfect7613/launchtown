@@ -4,8 +4,12 @@ import { createClaudeReportAgent } from './_lib/claudeReportAgent';
 import { createConvexReportRepository } from './_lib/convexReportRepository';
 import { createReportToolHandlers } from './_lib/reportTools';
 import { generateReportArtifact } from '../src/launchReport/report';
+import { renderLaunchReportPdf } from '../src/launchReport/pdf';
 
-const requestSchema = z.object({ productId: z.string().min(1).max(128) });
+const requestSchema = z.object({
+  productId: z.string().min(1).max(128),
+  format: z.enum(['json', 'pdf']).default('json'),
+});
 
 export const maxDuration = 300;
 
@@ -17,8 +21,35 @@ interface ApiRequest {
 interface ApiResponse {
   status(code: number): ApiResponse;
   json(body: unknown): void;
+  send(body: Buffer): void;
   setHeader(name: string, value: string): void;
   end(): void;
+}
+
+async function sendPdf(
+  response: ApiResponse,
+  repository: ReturnType<typeof createConvexReportRepository>,
+  productId: string,
+  artifact: Awaited<ReturnType<typeof generateReportArtifact>>,
+) {
+  const [simulationRun, browserRuns, residentStates, influenceEvents] = await Promise.all([
+    repository.getSimulationRun(productId),
+    repository.getBrowserRuns(productId),
+    repository.getResidentStates(productId),
+    repository.getInfluenceEvents(productId),
+  ]);
+  if (!simulationRun) throw new Error('Completed simulation evidence is unavailable');
+  const pdf = await renderLaunchReportPdf(artifact, {
+    simulationRun,
+    browserRuns,
+    residentStates,
+    influenceEvents,
+  });
+  const filename = artifact.productName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  response.setHeader('Content-Type', 'application/pdf');
+  response.setHeader('Content-Disposition', `attachment; filename="${filename}-launch-report.pdf"`);
+  response.setHeader('Content-Length', String(pdf.length));
+  response.status(200).send(pdf);
 }
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
@@ -39,12 +70,16 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
-    const { productId } = requestSchema.parse(request.body);
+    const { productId, format } = requestSchema.parse(request.body);
     const repository = createConvexReportRepository(convexUrl, gateSecret);
     const leaseId = randomUUID();
     const claim = await repository.beginReportGeneration(productId, leaseId);
     if (claim.state === 'complete') {
-      response.status(200).json(claim.artifact);
+      if (format === 'pdf') {
+        await sendPdf(response, repository, productId, claim.artifact);
+      } else {
+        response.status(200).json(claim.artifact);
+      }
       return;
     }
     if (claim.state === 'not_found') {
@@ -69,7 +104,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     try {
       const artifact = await generateReportArtifact(agent);
       await repository.completeReportGeneration(productId, leaseId, artifact);
-      response.status(200).json(artifact);
+      if (format === 'pdf') {
+        await sendPdf(response, repository, productId, artifact);
+      } else {
+        response.status(200).json(artifact);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to generate report';
       await repository.failReportGeneration(productId, leaseId, message).catch(() => undefined);

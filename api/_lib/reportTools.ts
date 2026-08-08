@@ -3,6 +3,7 @@ export interface ReportRepository {
   getBrowserRuns(productId: string): Promise<unknown>;
   getResidentStates(productId: string): Promise<unknown>;
   getMemories(productId: string): Promise<unknown>;
+  getSimulationRun(productId: string): Promise<unknown>;
 }
 
 export interface ReportToolHandlers {

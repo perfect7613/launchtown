@@ -36,9 +36,11 @@ const PRODUCT_KEY = 'launchtown.product';
 const SIM_KEY = 'launchtown.sim';
 
 export type SimSpeed = 1 | 4 | 16;
+export const SIMULATION_DURATION_SECONDS = 8 * 60;
 
 interface SimClock {
   running: boolean;
+  completed: boolean;
   // sim-seconds accumulated before the last speed change / pause
   baseSimSec: number;
   // wall-clock ms when the current segment started
@@ -92,7 +94,9 @@ export interface LaunchTownValue {
   resetProduct: () => void;
 
   simRunning: boolean;
+  simComplete: boolean;
   simSeconds: number;
+  simDurationSeconds: number;
   speed: SimSpeed;
   productAnalysisStatus?: 'seeded' | 'pending' | 'running' | 'complete' | 'failed';
   productCategory?: string;
@@ -184,10 +188,11 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   });
   const [clock, setClock] = useState<SimClock>(() => {
     const stored = loadJson<SimClock>(SIM_KEY);
-    if (stored) return stored;
+    if (stored) return { ...stored, completed: stored.completed ?? false };
     const { autostart } = demoParams();
     return {
       running: autostart,
+      completed: false,
       baseSimSec: 0,
       segmentStartMs: Date.now(),
       speed: 1,
@@ -230,14 +235,26 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(PRODUCT_KEY);
     localStorage.removeItem(SIM_KEY);
     setProduct(undefined);
-    setClock({ running: false, baseSimSec: 0, segmentStartMs: Date.now(), speed: 1 });
+    setClock({
+      running: false,
+      completed: false,
+      baseSimSec: 0,
+      segmentStartMs: Date.now(),
+      speed: 1,
+    });
   }, []);
 
   const startSimulation = useCallback(() => {
     setClock((c) => {
       const next: SimClock = c.running
         ? c
-        : { ...c, running: true, segmentStartMs: Date.now() };
+        : {
+            ...c,
+            running: true,
+            completed: false,
+            baseSimSec: c.completed ? 0 : c.baseSimSec,
+            segmentStartMs: Date.now(),
+          };
       saveJson(SIM_KEY, next);
       return next;
     });
@@ -246,6 +263,7 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const resetSimulation = useCallback(() => {
     const next: SimClock = {
       running: false,
+      completed: false,
       baseSimSec: 0,
       segmentStartMs: Date.now(),
       speed: 1,
@@ -268,7 +286,25 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const simSeconds = simSecondsOf(clock, nowMs);
+  const rawSimSeconds = simSecondsOf(clock, nowMs);
+  const simSeconds = Math.min(SIMULATION_DURATION_SECONDS, rawSimSeconds);
+  useEffect(() => {
+    if (!clock.running || rawSimSeconds < SIMULATION_DURATION_SECONDS) return;
+    setClock((current) => {
+      if (!current.running) return current;
+      const next = {
+        ...current,
+        running: false,
+        completed: true,
+        baseSimSec: SIMULATION_DURATION_SECONDS,
+        segmentStartMs: Date.now(),
+      };
+      saveJson(SIM_KEY, next);
+      return next;
+    });
+  }, [clock.running, rawSimSeconds]);
+
+  const scenarioSeconds = (simSeconds / SIMULATION_DURATION_SECONDS) * 80;
 
   const liveSnapshotMap = useMemo(
     () => (liveData ? liveSnapshots(liveData) : undefined),
@@ -289,9 +325,9 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
       const resident = assignmentFor(allPlayerNames).get(playerName) ?? playerName;
       const live = liveSnapshotMap?.get(resident);
       if (live) return live;
-      return scenarioSnapshot(resident, simSeconds);
+      return scenarioSnapshot(resident, scenarioSeconds);
     },
-    [assignmentFor, liveSnapshotMap, simSeconds],
+    [assignmentFor, liveSnapshotMap, scenarioSeconds],
   );
 
   const playerNameForResident = useCallback(
@@ -308,8 +344,8 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const pulses = useMemo<InfluencePulse[]>(() => {
     if (liveData) return livePulses(liveData, nowMs);
     if (!clock.running) return [];
-    return scenarioPulses(simSeconds);
-  }, [liveData, nowMs, clock.running, simSeconds]);
+    return scenarioPulses(scenarioSeconds);
+  }, [liveData, nowMs, clock.running, scenarioSeconds]);
 
   const metrics = useCallback(
     (allPlayerNames: string[]): TownMetrics => {
@@ -344,7 +380,9 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
       createProduct,
       resetProduct,
       simRunning: clock.running,
+      simComplete: clock.completed,
       simSeconds,
+      simDurationSeconds: SIMULATION_DURATION_SECONDS,
       speed: clock.speed,
       productAnalysisStatus: liveScenario?.product?.analysisStatus,
       productCategory: liveScenario?.product?.productModel?.category,
@@ -361,6 +399,7 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
       createProduct,
       resetProduct,
       clock.running,
+      clock.completed,
       clock.speed,
       liveScenario?.product?.analysisStatus,
       liveScenario?.product?.productModel?.category,

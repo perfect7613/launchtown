@@ -1,5 +1,11 @@
 import { useLaunchTown, SimSpeed } from '../launchtown/useLaunchTown';
 import { STAGE_META, STAGE_ORDER } from '../launchtown/types';
+import { Id } from '../../convex/_generated/dataModel';
+import { useSendInput } from '../hooks/sendInput';
+import { useEffect, useState } from 'react';
+import { useAction, useMutation, useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import LaunchReportPanel from './LaunchReportPanel';
 
 const STAGE_DOTS: Record<string, string> = {
   unaware: '⚪',
@@ -28,15 +34,72 @@ function Meter({ label, value }: { label: string; value: number }) {
 
 export default function MetricsBar({
   playerNames,
+  engineId,
   followedName,
   onFollowCascade,
 }: {
   playerNames: string[];
+  engineId: Id<'engines'>;
   followedName?: string;
   onFollowCascade: () => void;
 }) {
   const lt = useLaunchTown();
+  const [changing, setChanging] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string>();
+  const [showReport, setShowReport] = useState(false);
+  const startSimulationControl = useSendInput(engineId, 'startSimulationControl');
+  const setSimulationControlSpeed = useSendInput(engineId, 'setSimulationControlSpeed');
+  const runAllPersonaJourneys = useAction(
+    api.launchTown.browserOrchestration.runAllPersonaJourneys,
+  );
+  const beginSimulationRun = useMutation(api.launchTown.simulationLifecycle.begin);
+  const completeSimulationRun = useMutation(
+    api.launchTown.simulationLifecycle.completeSimulation,
+  );
+  const productId = lt.product?.convexId as Id<'products'> | undefined;
+  const latestRun = useQuery(
+    api.launchTown.simulationLifecycle.latest,
+    productId ? { productId } : 'skip',
+  );
   const m = lt.metrics(playerNames);
+
+  const start = async () => {
+    setChanging(true);
+    try {
+      const simulationRunId = crypto.randomUUID();
+      if (productId) {
+        await beginSimulationRun({ productId, runId: simulationRunId, speed: lt.speed });
+      }
+      await startSimulationControl({ speed: lt.speed, runId: simulationRunId });
+      setActiveRunId(simulationRunId);
+      lt.startSimulation();
+      if (productId) {
+        void runAllPersonaJourneys({
+          productId,
+          simulationRunId,
+        });
+      }
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!lt.simComplete || !activeRunId || !productId) return;
+    void completeSimulationRun({ productId, runId: activeRunId }).finally(() => {
+      setActiveRunId(undefined);
+    });
+  }, [activeRunId, completeSimulationRun, lt.simComplete, productId]);
+
+  const changeSpeed = async (speed: SimSpeed) => {
+    lt.setSpeed(speed);
+    setChanging(true);
+    try {
+      await setSimulationControlSpeed({ speed });
+    } finally {
+      setChanging(false);
+    }
+  };
 
   return (
     <div className="lt-panel mx-auto w-full max-w-[1400px] mb-2 px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-white">
@@ -87,20 +150,29 @@ export default function MetricsBar({
       <div className="flex items-center gap-2 ml-auto">
         {!lt.simRunning ? (
           <button
-            onClick={lt.startSimulation}
+            onClick={() => void start()}
+            disabled={changing}
             className="rounded bg-green-500 hover:bg-green-400 text-black font-display tracking-wider px-4 py-1.5 text-lg shadow-[0_3px_0_#14532d]"
           >
-            ▶ Start simulation
+            {changing ? 'Starting…' : lt.simComplete ? '▶ Run again' : '▶ Start simulation'}
           </button>
         ) : (
           <>
             <span className="text-xs uppercase tracking-wider text-clay-100/70">
-              Day 1 · {Math.floor(lt.simSeconds)}s
+              {Math.ceil((lt.simDurationSeconds - lt.simSeconds) / lt.speed)}s remaining
             </span>
             {[1, 4, 16].map((s) => (
               <button
                 key={s}
-                onClick={() => lt.setSpeed(s as SimSpeed)}
+                onClick={() => void changeSpeed(s as SimSpeed)}
+                disabled={changing}
+                title={
+                  s === 16
+                    ? 'Fast: completes in about 30 seconds with brief conversations'
+                    : s === 4
+                      ? 'Medium: about 2 minutes with standard conversations'
+                      : 'Live pace: about 8 minutes with longer conversations'
+                }
                 className={
                   'rounded px-2 py-1 text-sm font-body border ' +
                   (lt.speed === s
@@ -131,7 +203,19 @@ export default function MetricsBar({
         >
           {followedName ? `◉ Following ${followedName}` : '◎ Follow cascade'}
         </button>
+        {productId && latestRun?.status === 'completed' && (
+          <button
+            type="button"
+            onClick={() => setShowReport(true)}
+            className="rounded border border-amber-400 px-3 py-1.5 text-sm text-amber-200 hover:bg-amber-400 hover:text-black"
+          >
+            Download report
+          </button>
+        )}
       </div>
+      {showReport && productId && (
+        <LaunchReportPanel productId={productId} onClose={() => setShowReport(false)} />
+      )}
     </div>
   );
 }

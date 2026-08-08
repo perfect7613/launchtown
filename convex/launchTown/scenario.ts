@@ -291,11 +291,11 @@ export const advanceScenarioClock = mutation({
     const elapsedSimulationMs =
       clock.elapsedSimulationMs + Math.max(0, now - clock.lastClockAt) * clock.speed;
     const phase =
-      elapsedSimulationMs >= 80_000
+      elapsedSimulationMs >= 480_000
         ? ('complete' as const)
-        : elapsedSimulationMs >= 50_000
+        : elapsedSimulationMs >= 300_000
           ? ('rohanToMeera' as const)
-          : elapsedSimulationMs >= 20_000
+          : elapsedSimulationMs >= 120_000
             ? ('rohanBrowsing' as const)
             : ('priyaToRohan' as const);
     await ctx.db.patch(clock._id, {
