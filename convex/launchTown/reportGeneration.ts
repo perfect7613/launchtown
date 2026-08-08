@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
 import { reportArtifactValidator } from './reportArtifactValidator';
-import { decideGeneration, REPORT_LEASE_MS } from './reportGenerationPolicy';
+import {
+  decideGeneration,
+  hasRequiredRecommendationCount,
+  REPORT_LEASE_MS,
+} from './reportGenerationPolicy';
 
 const gateArgs = {
   productId: v.id('products'),
@@ -76,6 +80,9 @@ export const complete = mutation({
   args: { ...gateArgs, leaseId: v.string(), artifact: reportArtifactValidator },
   handler: async (ctx, { productId, gateSecret, leaseId, artifact }) => {
     authorize(gateSecret);
+    if (!hasRequiredRecommendationCount(artifact)) {
+      throw new Error('Launch Report must contain exactly three recommendations');
+    }
     const report = await ctx.db
       .query('launchReports')
       .withIndex('product', (q) => q.eq('productId', productId))

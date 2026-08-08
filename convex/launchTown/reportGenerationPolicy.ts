@@ -10,6 +10,12 @@ export interface ExistingGeneration {
 
 export type GenerationDecision = 'complete' | 'running' | 'exhausted' | 'granted';
 
+export function hasRequiredRecommendationCount(artifact: {
+  recommendations: readonly unknown[];
+}): boolean {
+  return artifact.recommendations.length === 3;
+}
+
 export function decideGeneration(
   existing: ExistingGeneration | null,
   now: number,

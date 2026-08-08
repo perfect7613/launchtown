@@ -107,12 +107,26 @@ export const getResidentStates = query({
 export const getMemories = query({
   args: productArgs,
   handler: async (ctx, { productId }) => {
-    const [memories, descriptions] = await Promise.all([
-      ctx.db.query('memories').collect(),
-      ctx.db.query('playerDescriptions').collect(),
-    ]);
+    const memories = await ctx.db
+      .query('memories')
+      .withIndex('product', (q) => q.eq('data.productId', productId))
+      .collect();
+    const playerIds = [...new Set(memories.map((memory) => memory.playerId))];
+    const descriptions = await Promise.all(
+      playerIds.map((playerId) =>
+        ctx.db
+          .query('playerDescriptions')
+          .withIndex('playerId', (q) => q.eq('playerId', playerId))
+          .first(),
+      ),
+    );
     const names = new Map(
-      descriptions.map((description) => [description.playerId, description.name]),
+      descriptions
+        .filter(
+          (description): description is NonNullable<(typeof descriptions)[number]> =>
+            description !== null,
+        )
+        .map((description) => [description.playerId, description.name]),
     );
     return memories
       .filter(

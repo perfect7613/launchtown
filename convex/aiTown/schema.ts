@@ -35,7 +35,9 @@ export const aiTownTables = {
   playerDescriptions: defineTable({
     worldId: v.id('worlds'),
     ...serializedPlayerDescription,
-  }).index('worldId', ['worldId', 'playerId']),
+  })
+    .index('worldId', ['worldId', 'playerId'])
+    .index('playerId', ['playerId']),
   agentDescriptions: defineTable({
     worldId: v.id('worlds'),
     ...serializedAgentDescription,

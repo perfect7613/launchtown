@@ -22,43 +22,49 @@ export function createClaudeReportAgent(
   handlers: ReportToolHandlers,
   productId: string,
 ): ReportAgent {
-  const evidenceServer = createSdkMcpServer({
-    name: 'launchtown',
-    version: '1.0.0',
-    instructions:
-      'These tools are read-only views of the mounted LaunchTown simulation. Cite only evidence returned by them.',
-    alwaysLoad: true,
-    tools: [
-      tool(
-        'get_influence_events',
-        'Read belief transfers, social influence deltas, and behavior triggers.',
-        {},
-        async () => toolResult(await handlers.get_influence_events()),
-      ),
-      tool(
-        'get_browser_runs',
-        'Read resident browser journeys, frictions, pages, and outcomes. Credentials are excluded.',
-        {},
-        async () => toolResult(await handlers.get_browser_runs()),
-      ),
-      tool(
-        'get_resident_states',
-        'Read mounted product context, resident traits, final beliefs, and funnel states.',
-        {},
-        async () => toolResult(await handlers.get_resident_states()),
-      ),
-      tool(
-        'get_memories',
-        'Read resident first-hand product experiences and product hearsay.',
-        {},
-        async () => toolResult(await handlers.get_memories()),
-      ),
-    ],
-  });
-
   return {
     async run(): Promise<ReportAgentResult> {
       let final: ReportAgentResult | undefined;
+      const usedTools = new Set<string>();
+      const trackedTool =
+        (name: (typeof TOOL_NAMES)[number], handler: () => Promise<unknown>) => async () => {
+          const value = await handler();
+          usedTools.add(name);
+          return toolResult(value);
+        };
+      const evidenceServer = createSdkMcpServer({
+        name: 'launchtown',
+        version: '1.0.0',
+        instructions:
+          'These tools are read-only views of the mounted LaunchTown simulation. Cite only evidence returned by them.',
+        alwaysLoad: true,
+        tools: [
+          tool(
+            'get_influence_events',
+            'Read belief transfers, social influence deltas, and behavior triggers.',
+            {},
+            trackedTool('get_influence_events', handlers.get_influence_events),
+          ),
+          tool(
+            'get_browser_runs',
+            'Read resident browser journeys, frictions, pages, and outcomes. Credentials are excluded.',
+            {},
+            trackedTool('get_browser_runs', handlers.get_browser_runs),
+          ),
+          tool(
+            'get_resident_states',
+            'Read mounted product context, resident traits, final beliefs, and funnel states.',
+            {},
+            trackedTool('get_resident_states', handlers.get_resident_states),
+          ),
+          tool(
+            'get_memories',
+            'Read resident first-hand product experiences and product hearsay.',
+            {},
+            trackedTool('get_memories', handlers.get_memories),
+          ),
+        ],
+      });
       const allowedTools = TOOL_NAMES.map((name) => `mcp__launchtown__${name}`);
       for await (const message of query({
         prompt: `Generate the founder-facing launch report for the mounted product ${productId}.
@@ -82,11 +88,14 @@ Call all four LaunchTown tools. Reconcile the evidence across them. Identify con
             schema: z.toJSONSchema(launchReportSchema, { target: 'draft-7' }),
           },
           env: {
-            ...process.env,
+            ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+            PATH: process.env.PATH,
+            TMPDIR: process.env.TMPDIR,
+            TEMP: process.env.TEMP,
+            TMP: process.env.TMP,
             CLAUDE_AGENT_SDK_CLIENT_APP: 'launchtown-launch-report/1.0.0',
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
-            CLAUDE_CONFIG_DIR:
-              process.env.CLAUDE_CONFIG_DIR ?? '/tmp/launchtown-launch-report-claude',
+            CLAUDE_CONFIG_DIR: '/tmp/launchtown-launch-report-claude',
           },
         },
       })) {
@@ -100,6 +109,12 @@ Call all four LaunchTown tools. Reconcile the evidence across them. Identify con
         };
       }
       if (!final) throw new Error('Claude session ended without a structured report');
+      const missingTools = TOOL_NAMES.filter((name) => !usedTools.has(name));
+      if (missingTools.length > 0) {
+        throw new Error(
+          `Claude report omitted required evidence tools: ${missingTools.join(', ')}`,
+        );
+      }
       return final;
     },
   };

@@ -1,4 +1,9 @@
-import { generateReportArtifact, type LaunchReport, type ReportAgent } from './report';
+import {
+  generateReportArtifact,
+  reportToMarkdown,
+  type LaunchReport,
+  type ReportAgent,
+} from './report';
 
 const claudeResponse: LaunchReport = {
   productName: 'Ledgerly',
@@ -79,9 +84,32 @@ test('rejects a mocked Claude response that omits required evidence', async () =
   const agent: ReportAgent = {
     run: async () => ({
       sessionId: 'session-invalid',
-      output: { ...claudeResponse, recommendations: [] },
+      output: {
+        ...claudeResponse,
+        recommendations: claudeResponse.recommendations.map((recommendation, index) =>
+          index === 0 ? { ...recommendation, evidence: [] } : recommendation,
+        ),
+      },
     }),
   };
 
   await expect(generateReportArtifact(agent)).rejects.toThrow();
+});
+
+test('keeps Markdown funnel values inside one escaped table row', () => {
+  const markdown = reportToMarkdown({
+    ...claudeResponse,
+    funnelOutcomes: [
+      {
+        ...claudeResponse.funnelOutcomes[0],
+        resident: 'Priya | Founder',
+        outcome: 'Paused\nfor review',
+        pagesVisited: ['/pricing|annual', '/signup\nconfirm'],
+      },
+    ],
+  });
+
+  expect(markdown).toContain(
+    '| Priya \\| Founder | evaluating | No | Paused<br>for review | /pricing\\|annual → /signup<br>confirm |',
+  );
 });

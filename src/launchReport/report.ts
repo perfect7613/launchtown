@@ -69,6 +69,10 @@ function bulletList(items: string[]): string {
   return items.map((item) => `- ${item}`).join('\n');
 }
 
+function markdownTableCell(value: string): string {
+  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
+}
+
 export function reportToMarkdown(report: LaunchReport): string {
   const frictions = report.topFrictions
     .map(
@@ -94,7 +98,7 @@ export function reportToMarkdown(report: LaunchReport): string {
   const funnel = report.funnelOutcomes
     .map(
       (resident) =>
-        `| ${resident.resident} | ${resident.stage} | ${resident.converted ? 'Yes' : 'No'} | ${resident.outcome} | ${resident.pagesVisited.join(' → ') || '—'} |`,
+        `| ${markdownTableCell(resident.resident)} | ${markdownTableCell(resident.stage)} | ${resident.converted ? 'Yes' : 'No'} | ${markdownTableCell(resident.outcome)} | ${markdownTableCell(resident.pagesVisited.join(' → ') || '—')} |`,
     )
     .join('\n');
   const recommendations = report.recommendations

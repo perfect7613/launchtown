@@ -1,4 +1,9 @@
-import { decideGeneration, MAX_REPORT_ATTEMPTS, REPORT_LEASE_MS } from './reportGenerationPolicy';
+import {
+  decideGeneration,
+  hasRequiredRecommendationCount,
+  MAX_REPORT_ATTEMPTS,
+  REPORT_LEASE_MS,
+} from './reportGenerationPolicy';
 
 const now = 1_000_000;
 
@@ -56,4 +61,10 @@ test('exhausts the server-owned retry budget', () => {
       now,
     ),
   ).toBe('exhausted');
+});
+
+test('accepts exactly three persisted recommendations', () => {
+  expect(hasRequiredRecommendationCount({ recommendations: [{}, {}, {}] })).toBe(true);
+  expect(hasRequiredRecommendationCount({ recommendations: [{}, {}] })).toBe(false);
+  expect(hasRequiredRecommendationCount({ recommendations: [{}, {}, {}, {}] })).toBe(false);
 });

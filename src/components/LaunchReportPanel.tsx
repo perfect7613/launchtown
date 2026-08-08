@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ReportArtifact } from '../launchReport/report';
 
 interface LaunchReportPanelProps {
@@ -17,6 +17,47 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+    return () => trigger?.focus();
+  }, []);
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCloseRef.current();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [
+      ...(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ) ?? []),
+    ];
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialogRef.current?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const generate = async () => {
     setLoading(true);
@@ -41,9 +82,14 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
 
   const copyMarkdown = async () => {
     if (!report) return;
-    await navigator.clipboard.writeText(report.markdown);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1_500);
+    try {
+      await navigator.clipboard.writeText(report.markdown);
+      setCopied(true);
+      setError(undefined);
+      window.setTimeout(() => setCopied(false), 1_500);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to copy the report');
+    }
   };
 
   const downloadMarkdown = () => {
@@ -57,14 +103,27 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/95 px-4 py-6 text-slate-100 sm:px-8">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="launch-report-title"
+      tabIndex={-1}
+      onKeyDown={handleDialogKeyDown}
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/95 px-4 py-6 text-slate-100 sm:px-8"
+    >
       <div className="mx-auto max-w-6xl">
         <header className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-700 pb-5">
           <div>
             <div className="mb-2 text-xs uppercase tracking-[0.3em] text-amber-300">
               Claude agent artifact
             </div>
-            <h2 className="font-display text-4xl tracking-wide sm:text-5xl">Launch Report</h2>
+            <h2
+              id="launch-report-title"
+              className="font-display text-4xl tracking-wide sm:text-5xl"
+            >
+              Launch Report
+            </h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-400">
               An evidence-grounded readout of resident journeys, social belief spread, and the
               highest-leverage site fixes.
@@ -90,6 +149,7 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
               </>
             )}
             <button
+              ref={closeButtonRef}
               type="button"
               className="rounded bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
               onClick={onClose}
@@ -98,6 +158,8 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
             </button>
           </div>
         </header>
+
+        {error && <p className="mb-5 rounded bg-red-950/70 p-3 text-sm text-red-200">{error}</p>}
 
         {!report && (
           <section className="lt-panel mx-auto mt-16 max-w-2xl p-8 text-center">
@@ -119,9 +181,6 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
               <div className="mx-auto mt-5 h-1 max-w-md overflow-hidden rounded bg-slate-800">
                 <div className="h-full w-1/2 animate-pulse rounded bg-amber-400" />
               </div>
-            )}
-            {error && (
-              <p className="mt-5 rounded bg-red-950/70 p-3 text-sm text-red-200">{error}</p>
             )}
           </section>
         )}
