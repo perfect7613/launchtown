@@ -94,6 +94,7 @@ export default function Game() {
   if (!worldId || !engineId || !game) {
     return null;
   }
+  const inspectorOpen = !!selectedElement && game.world.players.has(selectedElement.id);
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
@@ -102,7 +103,13 @@ export default function Game() {
         followedName={followedSnapshot?.resident}
         onFollowCascade={followCascade}
       />
-      <div className="mx-auto w-full max-w grid grid-rows-[240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
+      <div
+        className={`mx-auto grid min-h-[480px] w-full max-w-[1400px] lg:grow game-frame ${
+          inspectorOpen
+            ? 'grid-rows-[240px_1fr] lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[1fr]'
+            : 'grid-cols-1'
+        }`}
+      >
         {/* Game area */}
         <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
           <div className="absolute inset-0">
@@ -128,23 +135,24 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
             </div>
           </div>
         </div>
-        {/* Inspector column */}
-        <div
-          className="flex flex-col overflow-y-auto shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900 lt-inspector text-brown-100"
-          ref={scrollViewRef}
-        >
-          <ResidentInspector
-            worldId={worldId}
-            game={game}
-            playerId={selectedElement?.id}
-            setSelectedElement={setSelectedElement}
-            scrollViewRef={scrollViewRef}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            followedPlayerId={followedPlayerId}
-            setFollowedPlayerId={setFollowedPlayerId}
-          />
-        </div>
+        {inspectorOpen && (
+          <div
+            className="flex shrink-0 flex-col overflow-y-auto border-t-8 border-brown-900 px-4 py-6 text-brown-100 sm:px-6 lg:w-96 lg:border-l-8 lg:border-t-0 xl:pr-6 lt-inspector"
+            ref={scrollViewRef}
+          >
+            <ResidentInspector
+              worldId={worldId}
+              game={game}
+              playerId={selectedElement.id}
+              setSelectedElement={setSelectedElement}
+              scrollViewRef={scrollViewRef}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              followedPlayerId={followedPlayerId}
+              setFollowedPlayerId={setFollowedPlayerId}
+            />
+          </div>
+        )}
       </div>
     </>
   );
