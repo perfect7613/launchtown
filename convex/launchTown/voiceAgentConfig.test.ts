@@ -21,19 +21,21 @@ test('prompts for an evidence-led, responsive multi-turn website diagnosis', () 
   expect(RESIDENT_INTERVIEWER_PROMPT).toContain('Do not close after answering one question');
 });
 
-test('uses the documented Indian-English female Maya Research voice', () => {
+test('uses the supported Claude route and documented Indian-English Maya voice', () => {
   const request = residentInterviewerAgentRequest();
+  const llmConfig = request.agent_config.tasks[0].tools_config.llm_agent.llm_config;
 
   expect(request.agent_prompts.task_1.system_prompt).toBe(RESIDENT_INTERVIEWER_PROMPT);
   expect(request.agent_config.agent_welcome_message).toBe("Hi, I'm {name}. {opening_assessment}");
-  expect(request.agent_config.tasks[0].tools_config.llm_agent.llm_config).toEqual({
-    provider: 'openai',
-    family: 'openai',
-    model: 'gpt-4.1-mini',
-    base_url: 'https://api.openai.com/v1',
-    max_tokens: 300,
+  expect(llmConfig).toEqual({
+    provider: 'anthropic',
+    family: 'anthropic',
+    model: 'claude-sonnet-4',
+    max_tokens: 150,
     temperature: 0.2,
   });
+  expect(llmConfig).not.toHaveProperty('base_url');
+  expect(JSON.stringify(llmConfig).toLowerCase()).not.toContain('openai');
   expect(request.agent_config.tasks[0].task_config).toEqual({
     call_terminate: 180,
     hangup_after_silence: 20,
