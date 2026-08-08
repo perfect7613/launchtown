@@ -1,120 +1,58 @@
-// That's right! No imports and no dependencies 🤯
-
 const OPENAI_EMBEDDING_DIMENSION = 1536;
 const TOGETHER_EMBEDDING_DIMENSION = 768;
-const OLLAMA_EMBEDDING_DIMENSION = 1024;
 
-export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;
+// LaunchTown uses OpenAI text-embedding-3-small. Keep this in lockstep with
+// the memoryEmbeddings vector index in convex/agent/schema.ts.
+export const EMBEDDING_DIMENSION: number = OPENAI_EMBEDDING_DIMENSION;
 
 export function detectMismatchedLLMProvider() {
-  switch (EMBEDDING_DIMENSION) {
-    case OPENAI_EMBEDDING_DIMENSION:
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error(
-          "Are you trying to use OpenAI? If so, run: npx convex env set OPENAI_API_KEY 'your-key'",
-        );
-      }
-      break;
-    case TOGETHER_EMBEDDING_DIMENSION:
-      if (!process.env.TOGETHER_API_KEY) {
-        throw new Error(
-          "Are you trying to use Together.ai? If so, run: npx convex env set TOGETHER_API_KEY 'your-key'",
-        );
-      }
-      break;
-    case OLLAMA_EMBEDDING_DIMENSION:
-      break;
-    default:
-      if (!process.env.LLM_API_URL) {
-        throw new Error(
-          "Are you trying to use a custom cloud-hosted LLM? If so, run: npx convex env set LLM_API_URL 'your-url'",
-        );
-      }
-      break;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is required for Claude cognition");
+  }
+  if (!process.env.OPENAI_API_KEY && !process.env.TOGETHER_API_KEY) {
+    throw new Error('OPENAI_API_KEY or TOGETHER_API_KEY is required for memory embeddings');
   }
 }
 
-export interface LLMConfig {
-  provider: 'openai' | 'together' | 'ollama' | 'custom';
-  url: string; // Should not have a trailing slash
-  chatModel: string;
+export interface EmbeddingConfig {
+  provider: 'openai' | 'together';
+  url: string;
   embeddingModel: string;
-  stopWords: string[];
   apiKey: string | undefined;
 }
 
-export function getLLMConfig(): LLMConfig {
-  let provider = process.env.LLM_PROVIDER;
-  if (provider ? provider === 'openai' : process.env.OPENAI_API_KEY) {
+export function getEmbeddingConfig(): EmbeddingConfig {
+  const provider = process.env.EMBEDDING_PROVIDER;
+  if (provider === 'openai' || (!provider && process.env.OPENAI_API_KEY)) {
     if (EMBEDDING_DIMENSION !== OPENAI_EMBEDDING_DIMENSION) {
       throw new Error('EMBEDDING_DIMENSION must be 1536 for OpenAI');
     }
     return {
       provider: 'openai',
       url: 'https://api.openai.com',
-      chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',
-      embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
-      stopWords: [],
+      embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
       apiKey: process.env.OPENAI_API_KEY,
     };
   }
-  if (process.env.TOGETHER_API_KEY) {
+  if (provider === 'together' || process.env.TOGETHER_API_KEY) {
     if (EMBEDDING_DIMENSION !== TOGETHER_EMBEDDING_DIMENSION) {
       throw new Error('EMBEDDING_DIMENSION must be 768 for Together.ai');
     }
     return {
       provider: 'together',
       url: 'https://api.together.xyz',
-      chatModel: process.env.TOGETHER_CHAT_MODEL ?? 'meta-llama/Llama-3-8b-chat-hf',
       embeddingModel:
         process.env.TOGETHER_EMBEDDING_MODEL ?? 'togethercomputer/m2-bert-80M-8k-retrieval',
-      stopWords: ['<|eot_id|>'],
       apiKey: process.env.TOGETHER_API_KEY,
     };
   }
-  if (process.env.LLM_API_URL) {
-    const apiKey = process.env.LLM_API_KEY;
-    const url = process.env.LLM_API_URL;
-    const chatModel = process.env.LLM_MODEL;
-    if (!chatModel) throw new Error('LLM_MODEL is required');
-    const embeddingModel = process.env.LLM_EMBEDDING_MODEL;
-    if (!embeddingModel) throw new Error('LLM_EMBEDDING_MODEL is required');
-    return {
-      provider: 'custom',
-      url,
-      chatModel,
-      embeddingModel,
-      stopWords: [],
-      apiKey,
-    };
-  }
-  // Assume Ollama
-  if (EMBEDDING_DIMENSION !== OLLAMA_EMBEDDING_DIMENSION) {
-    detectMismatchedLLMProvider();
-    throw new Error(
-      `Unknown EMBEDDING_DIMENSION ${EMBEDDING_DIMENSION} found` +
-        `. See convex/util/llm.ts for details.`,
-    );
-  }
-  // Alternative embedding model:
-  // embeddingModel: 'llama3'
-  // const OLLAMA_EMBEDDING_DIMENSION = 4096,
-  return {
-    provider: 'ollama',
-    url: process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434',
-    chatModel: process.env.OLLAMA_MODEL ?? 'llama3',
-    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL ?? 'mxbai-embed-large',
-    stopWords: ['<|eot_id|>'],
-    apiKey: undefined,
-  };
+  detectMismatchedLLMProvider();
+  throw new Error('No embedding provider configured');
 }
 
-const AuthHeaders = (): Record<string, string> =>
-  getLLMConfig().apiKey
-    ? {
-        Authorization: 'Bearer ' + getLLMConfig().apiKey,
-      }
-    : {};
+const embeddingAuthHeaders = (config: EmbeddingConfig): Record<string, string> => ({
+  Authorization: `Bearer ${config.apiKey}`,
+});
 
 // Overload for non-streaming
 export async function chatCompletion(
@@ -137,31 +75,47 @@ export async function chatCompletion(
     model?: CreateChatCompletionRequest['model'];
   },
 ) {
-  const config = getLLMConfig();
-  body.model = body.model ?? config.chatModel;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required for Claude cognition');
+  body.model = body.model ?? process.env.ANTHROPIC_CHAT_MODEL ?? 'claude-sonnet-4-6';
   const stopWords = body.stop ? (typeof body.stop === 'string' ? [body.stop] : body.stop) : [];
-  if (config.stopWords) stopWords.push(...config.stopWords);
-  console.log(body);
+  const system = body.messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content ?? '')
+    .join('\n');
+  const messages = body.messages
+    .filter((message) => message.role !== 'system')
+    .map((message) => ({
+      role: message.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+      content: message.content ?? '',
+    }));
+  if (messages.length === 0) messages.push({ role: 'user', content: system || 'Continue.' });
   const {
     result: content,
     retries,
     ms,
   } = await retryWithBackoff(async () => {
-    const result = await fetch(config.url + '/v1/chat/completions', {
+    const result = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...AuthHeaders(),
+        'anthropic-version': '2023-06-01',
+        'x-api-key': apiKey,
       },
-
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: body.model,
+        max_tokens: body.max_tokens ?? 512,
+        messages,
+        ...(system ? { system } : {}),
+        ...(stopWords.length ? { stop_sequences: stopWords } : {}),
+        ...(body.temperature != null ? { temperature: Math.min(1, body.temperature) } : {}),
+        ...(body.top_p != null ? { top_p: body.top_p } : {}),
+        ...(body.stream ? { stream: true } : {}),
+      }),
     });
     if (!result.ok) {
       const error = await result.text();
       console.error({ error });
-      if (result.status === 404 && config.provider === 'ollama') {
-        await tryPullOllama(body.model!, error);
-      }
       throw {
         retry: result.status === 429 || result.status >= 500,
         error: new Error(`Chat completion failed with code ${result.status}: ${error}`),
@@ -170,12 +124,16 @@ export async function chatCompletion(
     if (body.stream) {
       return new ChatCompletionContent(result.body!, stopWords);
     } else {
-      const json = (await result.json()) as CreateChatCompletionResponse;
-      const content = json.choices[0].message?.content;
-      if (content === undefined) {
-        throw new Error('Unexpected result from OpenAI: ' + JSON.stringify(json));
+      const json = (await result.json()) as {
+        content: Array<{ type: string; text?: string }>;
+      };
+      const content = json.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text ?? '')
+        .join('');
+      if (!content) {
+        throw new Error('Claude returned no text content');
       }
-      console.log(content);
       return content;
     }
   });
@@ -187,31 +145,8 @@ export async function chatCompletion(
   };
 }
 
-export async function tryPullOllama(model: string, error: string) {
-  if (error.includes('try pulling')) {
-    console.error('Embedding model not found, pulling from Ollama');
-    const pullResp = await fetch(getLLMConfig().url + '/api/pull', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name: model }),
-    });
-    console.log('Pull response', await pullResp.text());
-    throw { retry: true, error: `Dynamically pulled model. Original error: ${error}` };
-  }
-}
-
 export async function fetchEmbeddingBatch(texts: string[]) {
-  const config = getLLMConfig();
-  if (config.provider === 'ollama') {
-    return {
-      ollama: true as const,
-      embeddings: await Promise.all(
-        texts.map(async (t) => (await ollamaFetchEmbedding(t)).embedding),
-      ),
-    };
-  }
+  const config = getEmbeddingConfig();
   const {
     result: json,
     retries,
@@ -221,7 +156,7 @@ export async function fetchEmbeddingBatch(texts: string[]) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...AuthHeaders(),
+        ...embeddingAuthHeaders(config),
       },
 
       body: JSON.stringify({
@@ -258,27 +193,10 @@ export async function fetchEmbedding(text: string) {
 }
 
 export async function fetchModeration(content: string) {
-  const { result: flagged } = await retryWithBackoff(async () => {
-    const result = await fetch(getLLMConfig().url + '/v1/moderations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthHeaders(),
-      },
-
-      body: JSON.stringify({
-        input: content,
-      }),
-    });
-    if (!result.ok) {
-      throw {
-        retry: result.status === 429 || result.status >= 500,
-        error: new Error(`Embedding failed with code ${result.status}: ${await result.text()}`),
-      };
-    }
-    return (await result.json()) as { results: { flagged: boolean }[] };
-  });
-  return flagged;
+  // LaunchTown never accepts human-authored simulation messages. Kept for API
+  // compatibility with AI Town's testing utility.
+  void content;
+  return [{ flagged: false }];
 }
 
 // Retry after this much time, based on the retry number.
@@ -612,10 +530,13 @@ export class ChatCompletionContent {
       if (data.startsWith('data: ')) {
         try {
           const json = JSON.parse(data.substring('data: '.length)) as {
-            choices: { delta: { content?: string } }[];
+            type?: string;
+            delta?: { type?: string; text?: string };
+            choices?: { delta: { content?: string } }[];
           };
-          if (json.choices[0].delta.content) {
-            yield json.choices[0].delta.content;
+          const content = json.delta?.text ?? json.choices?.[0]?.delta.content;
+          if (content) {
+            yield content;
           }
         } catch (e) {
           // e.g. the last chunk is [DONE] which is not valid JSON.
@@ -683,24 +604,4 @@ export class ChatCompletionContent {
       reader.releaseLock();
     }
   }
-}
-
-export async function ollamaFetchEmbedding(text: string) {
-  const config = getLLMConfig();
-  const { result } = await retryWithBackoff(async () => {
-    const resp = await fetch(config.url + '/api/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: config.embeddingModel, prompt: text }),
-    });
-    if (resp.status === 404) {
-      const error = await resp.text();
-      await tryPullOllama(config.embeddingModel, error);
-      throw new Error(`Failed to fetch embeddings: ${resp.status}`);
-    }
-    return (await resp.json()).embedding as number[];
-  });
-  return { embedding: result };
 }

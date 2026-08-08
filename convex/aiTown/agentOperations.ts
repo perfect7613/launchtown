@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
-import { WorldMap, serializedWorldMap } from './worldMap';
+import { serializedWorldMap } from './worldMap';
 import { rememberConversation } from '../agent/memory';
 import { GameId, agentId, conversationId, playerId } from './ids';
 import {
@@ -14,6 +14,7 @@ import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constan
 import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
+import { decideNextAction } from '../launchTown/behavior';
 
 export const agentRememberConversation = internalAction({
   args: {
@@ -101,7 +102,6 @@ export const agentDoSomething = internalAction({
   },
   handler: async (ctx, args) => {
     const { player, agent } = args;
-    const map = new WorldMap(args.map);
     const now = Date.now();
     // Don't try to start a new conversation if we were just in one.
     const justLeftConversation =
@@ -110,49 +110,49 @@ export const agentDoSomething = internalAction({
     const recentlyAttemptedInvite =
       agent.lastInviteAttempt && now < agent.lastInviteAttempt + CONVERSATION_COOLDOWN;
     const recentActivity = player.activity && now < player.activity.until + ACTIVITY_COOLDOWN;
-    // Decide whether to do an activity or wander somewhere.
-    if (!player.pathfinding) {
-      if (recentActivity || justLeftConversation) {
-        await sleep(Math.random() * 1000);
-        await ctx.runMutation(api.aiTown.main.sendInput, {
-          worldId: args.worldId,
-          name: 'finishDoSomething',
-          args: {
-            operationId: args.operationId,
-            agentId: agent.id,
-            destination: wanderDestination(map),
+    const behaviorContext = await ctx.runQuery(
+      internal.launchTown.behaviorPolicy.loadBehaviorContext,
+      { worldId: args.worldId, playerId: player.id },
+    );
+    const nextAction = behaviorContext
+      ? decideNextAction(behaviorContext.profile, behaviorContext.state, {
+          socialProof: behaviorContext.state.socialProof,
+          expectedFriction: behaviorContext.state.expectedFriction,
+          hasAvailablePeer: args.otherFreePlayers.length > 0,
+        })
+      : ({ kind: 'idle', visitProbability: 0 } as const);
+
+    if (nextAction.kind === 'browse' && !recentActivity) {
+      await ctx.runAction(api.launchTown.browserRunner.runForResident, {
+        productId: behaviorContext!.product._id,
+        residentKey: behaviorContext!.state.residentKey,
+        objective: `Evaluate ${behaviorContext!.product.name} using current beliefs and social context`,
+      });
+      await ctx.runMutation(api.aiTown.main.sendInput, {
+        worldId: args.worldId,
+        name: 'finishDoSomething',
+        args: {
+          operationId: args.operationId,
+          agentId: agent.id,
+          activity: {
+            description: `Browsing ${behaviorContext!.product.name}`,
+            emoji: '💻',
+            until: Date.now() + 30_000,
           },
-        });
-        return;
-      } else {
-        // TODO: have LLM choose the activity & emoji
-        const activity = ACTIVITIES[Math.floor(Math.random() * ACTIVITIES.length)];
-        await sleep(Math.random() * 1000);
-        await ctx.runMutation(api.aiTown.main.sendInput, {
-          worldId: args.worldId,
-          name: 'finishDoSomething',
-          args: {
-            operationId: args.operationId,
-            agentId: agent.id,
-            activity: {
-              description: activity.description,
-              emoji: activity.emoji,
-              until: Date.now() + activity.duration,
-            },
-          },
-        });
-        return;
-      }
+        },
+      });
+      return;
     }
+
     const invitee =
-      justLeftConversation || recentlyAttemptedInvite
-        ? undefined
-        : await ctx.runQuery(internal.aiTown.agent.findConversationCandidate, {
+      nextAction.kind === 'talk' && !justLeftConversation && !recentlyAttemptedInvite
+        ? await ctx.runQuery(internal.aiTown.agent.findConversationCandidate, {
             now,
             worldId: args.worldId,
             player: args.player,
             otherFreePlayers: args.otherFreePlayers,
-          });
+          })
+        : undefined;
 
     // TODO: We hit a lot of OCC errors on sending inputs in this file. It's
     // easy for them to get scheduled at the same time and line up in time.
@@ -163,16 +163,17 @@ export const agentDoSomething = internalAction({
       args: {
         operationId: args.operationId,
         agentId: args.agent.id,
-        invitee,
+        ...(invitee
+          ? { invitee }
+          : {
+              activity: {
+                description:
+                  nextAction.kind === 'talk' ? 'Looking for someone to talk to' : 'Reflecting',
+                emoji: nextAction.kind === 'talk' ? '💬' : '💭',
+                until: Date.now() + 5_000,
+              },
+            }),
       },
     });
   },
 });
-
-function wanderDestination(worldMap: WorldMap) {
-  // Wander someonewhere at least one tile away from the edge.
-  return {
-    x: 1 + Math.floor(Math.random() * (worldMap.width - 2)),
-    y: 1 + Math.floor(Math.random() * (worldMap.height - 2)),
-  };
-}

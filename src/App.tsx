@@ -2,8 +2,10 @@ import { ToastContainer } from 'react-toastify';
 import Game from './components/Game.tsx';
 import FreezeButton from './components/FreezeButton.tsx';
 import PoweredByConvex from './components/PoweredByConvex.tsx';
+import DemoControls from './components/DemoControls.tsx';
 
 export default function Home() {
+  const isLedgerlyDemo = window.location.pathname === '/demo/ledgerly';
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
       <PoweredByConvex />
@@ -14,6 +16,7 @@ export default function Home() {
         <div className="max-w-xs md:max-w-xl lg:max-w-none mx-auto my-4 text-center text-base sm:text-xl md:text-2xl text-white leading-tight shadow-solid">
           Rehearse your website launch with a living synthetic population.
         </div>
+        {isLedgerlyDemo && <DemoControls />}
         <Game />
         <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-4 gap-3 p-6 flex-wrap pointer-events-none">
           <div className="flex gap-4 flex-grow pointer-events-none">
