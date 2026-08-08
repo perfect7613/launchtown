@@ -5,6 +5,8 @@ An isolated TypeScript package for LaunchTown's browser/cognition boundary:
 - `BrowserUseJourneyRunner` creates unrecorded Browser Use Cloud V4 runs,
   polls cursor-based events for the credential-bearing live view URL, and
   validates completed structured journey output.
+- `BrowserUseV2JourneyRunner` implements the same interface for free-tier V2
+  tasks, with recording disabled and a conservative 20-step ceiling.
 - `ClaudeProductModelAnalyzer` fetches a public URL through Claude's server-side
   web-fetch tool and returns a strict Product Model.
 - `buildBrowserPrompt` creates a natural, social-context-aware browsing task.
