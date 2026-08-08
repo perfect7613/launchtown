@@ -2,7 +2,6 @@ import { ToastContainer } from 'react-toastify';
 import Game from './components/Game.tsx';
 import Onboarding from './components/Onboarding.tsx';
 import FreezeButton from './components/FreezeButton.tsx';
-import PoweredByConvex from './components/PoweredByConvex.tsx';
 import DemoControls from './components/DemoControls.tsx';
 import { LaunchTownProvider, useLaunchTown } from './launchtown/useLaunchTown.tsx';
 
@@ -11,7 +10,6 @@ function Shell() {
   const isLedgerlyDemo = window.location.pathname === '/demo/ledgerly';
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
-      <PoweredByConvex />
       <div className="w-full lg:h-screen min-h-screen relative isolate overflow-hidden lg:p-8 shadow-2xl flex flex-col justify-start">
         <div className="flex items-baseline justify-center gap-4 flex-wrap p-2">
           <h1
@@ -34,7 +32,11 @@ function Shell() {
           <div className="flex gap-4 flex-grow pointer-events-none">
             <FreezeButton />
           </div>
-          <span className="text-sm text-white/80">Built on a16z AI Town + Convex</span>
+          {product && (
+            <span className="text-sm text-white/60">
+              Rehearse your website launch with a living synthetic population.
+            </span>
+          )}
         </footer>
         <ToastContainer position="bottom-right" autoClose={2000} closeOnClick theme="dark" />
       </div>
