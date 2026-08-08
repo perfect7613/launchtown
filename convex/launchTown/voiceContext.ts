@@ -31,6 +31,7 @@ export interface ResidentVoiceContext {
 export type BolnaResidentUserData = {
   name: string;
   product: string;
+  opening_assessment: string;
   personality: string;
   beliefs: string;
   experiences: string;
@@ -72,6 +73,7 @@ function fitWithinLimit(userData: BolnaResidentUserData): BolnaResidentUserData 
     'hearsay',
     'personality',
     'product',
+    'opening_assessment',
   ];
   while (encoder.encode(JSON.stringify(fitted)).byteLength > BOLNA_USER_DATA_LIMIT_BYTES) {
     const field = fields.reduce((longest, candidate) =>
@@ -125,10 +127,20 @@ export function serializeResidentVoiceContext(
     ),
     'Nothing heard from other residents yet.',
   );
+  const firstExperience = clean(context.experiences[0]?.outcome ?? '');
+  const firstBelief = clean(state.productBeliefs[0]?.claim ?? '');
+  const openingEvidence = unique([firstExperience, firstBelief])
+    .slice(0, 2)
+    .map((item) => (/[.!?]$/.test(item) ? item : `${item}.`))
+    .join(' ');
+  const openingAssessment = openingEvidence
+    ? `My first take on ${clean(product.name)}: ${openingEvidence}`
+    : `My first take on ${clean(product.name)} is still forming because I have not completed a first-hand website pass.`;
 
   return fitWithinLimit({
     name: truncateUtf8(clean(profile.name), 256),
     product: truncateUtf8(`${clean(product.name)} (${clean(product.url)})`, 2048),
+    opening_assessment: truncateUtf8(openingAssessment, 360),
     personality: truncateUtf8(clean(personality), 8192),
     beliefs: truncateUtf8(beliefs, 12 * 1024),
     experiences: truncateUtf8(experiences, 12 * 1024),

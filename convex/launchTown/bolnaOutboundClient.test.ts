@@ -8,6 +8,7 @@ import {
 const USER_DATA = {
   name: 'Rohan',
   product: 'Ledgerly (https://ledgerly.example)',
+  opening_assessment: 'My first take on Ledgerly: the security page was clear.',
   personality: 'security-conscious engineer',
   beliefs: 'Strong documentation',
   experiences: 'Reviewed the security page',
