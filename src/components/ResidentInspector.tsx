@@ -193,14 +193,12 @@ function DeltaChip({ label, delta }: { label: string; delta: number }) {
 function SocialTab({
   snapshot,
   worldId,
-  engineId,
   game,
   playerId,
   scrollViewRef,
 }: {
   snapshot: ResidentSnapshot;
   worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
   game: ServerGame;
   playerId: GameId<'players'>;
   scrollViewRef: React.RefObject<HTMLDivElement>;
@@ -265,8 +263,6 @@ function SocialTab({
       {inLiveConversation && playerConversation && (
         <Messages
           worldId={worldId}
-          engineId={engineId}
-          inConversationWithMe={false}
           conversation={{ kind: 'active', doc: playerConversation }}
           scrollViewRef={scrollViewRef}
         />
@@ -277,7 +273,6 @@ function SocialTab({
 
 export default function ResidentInspector({
   worldId,
-  engineId,
   game,
   playerId,
   setSelectedElement,
@@ -288,7 +283,6 @@ export default function ResidentInspector({
   setFollowedPlayerId,
 }: {
   worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
   game: ServerGame;
   playerId?: GameId<'players'>;
   setSelectedElement: SelectElement;
@@ -401,7 +395,6 @@ export default function ResidentInspector({
           <SocialTab
             snapshot={snapshot}
             worldId={worldId}
-            engineId={engineId}
             game={game}
             playerId={playerId}
             scrollViewRef={scrollViewRef}

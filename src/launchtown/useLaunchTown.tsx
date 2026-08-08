@@ -2,7 +2,8 @@
 // resident snapshots, influence pulses, and town metrics.
 //
 // Data source strategy:
-//   1. If VITE_LAUNCHTOWN_LIVE is set, live Convex queries (liveApi.ts) win.
+//   1. When the foundation's Ledgerly scenario is seeded and running
+//      (launchTown.scenario.getLedgerly), live Convex state wins.
 //   2. Otherwise the deterministic scripted cascade (demoScenario.ts) drives
 //      everything, so the full demo spine works before the backend lands.
 
@@ -17,6 +18,7 @@ import React, {
   useState,
 } from 'react';
 import { useMutation, useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import {
   InfluencePulse,
   ProductEntry,
@@ -26,13 +28,7 @@ import {
   clamp01,
 } from './types';
 import { RESIDENTS, scenarioPulses, scenarioSnapshot } from './demoScenario';
-import {
-  LAUNCHTOWN_LIVE,
-  createProductRef,
-  influencePulsesRef,
-  residentOverviewsRef,
-  townMetricsRef,
-} from './liveApi';
+import { LiveScenario, livePulses, liveSnapshots, liveMetrics } from './liveAdapter';
 
 const PRODUCT_KEY = 'launchtown.product';
 const SIM_KEY = 'launchtown.sim';
@@ -127,6 +123,36 @@ function buildAssignment(allPlayerNames: string[]): Map<string, string> {
   return map;
 }
 
+// Fetches the live scenario inside an error boundary so a missing/renamed
+// Convex function can never take down the demo — we just stay in stub mode.
+function LiveScenarioBridge({
+  onData,
+}: {
+  onData: (d: LiveScenario | null | undefined) => void;
+}) {
+  const data = useQuery(api.launchTown.scenario.getLedgerly, {}) as
+    | LiveScenario
+    | null
+    | undefined;
+  useEffect(() => {
+    onData(data);
+  }, [data, onData]);
+  return null;
+}
+
+class LiveBoundary extends React.Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    // Live Convex state unavailable — the scripted cascade keeps the demo alive.
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const [product, setProduct] = useState<ProductEntry | undefined>(() => {
     const stored = loadJson<ProductEntry>(PRODUCT_KEY);
@@ -152,29 +178,42 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   });
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // UI tick for bars / stage transitions (Pixi layers animate per-frame on
-  // their own; 250ms is plenty for the DOM side).
+  // ---- Live Convex state from the foundation (launchTown.scenario) ----
+  // When the Ledgerly scenario is seeded and running, its resident states,
+  // browser runs, and influence events drive the UI; the scripted demo
+  // cascade is the fallback so the app demos with zero backend.
+  const [liveScenario, setLiveScenario] = useState<LiveScenario | null | undefined>();
+  const liveActive =
+    !!liveScenario &&
+    liveScenario.states.length > 0 &&
+    !!liveScenario.phase &&
+    liveScenario.phase.phase !== 'seeded';
+  const liveData = liveActive ? liveScenario : undefined;
+
+  // UI tick for bars / stage transitions / pulse fade (Pixi layers animate
+  // per-frame on their own; 250ms is plenty for the DOM side).
   useEffect(() => {
-    if (!clock.running) return;
+    if (!clock.running && !liveData) return;
     const id = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(id);
-  }, [clock.running]);
+  }, [clock.running, liveData]);
 
-  const createProductMutation = useMutation(createProductRef);
+  const seedLedgerly = useMutation(api.launchTown.scenario.seedLedgerly);
   const createProduct = useCallback(
     async (url: string) => {
       const entry: ProductEntry = { url, createdAt: Date.now() };
       try {
-        // Foundation mutation (PR #2). Falls back to local-only entry until it lands.
-        const id = await createProductMutation({ url });
+        // The foundation currently seeds the Ledgerly demo scenario; any URL
+        // creates the product entry, Ledgerly URLs get the seeded population.
+        const id = await seedLedgerly({});
         if (typeof id === 'string') entry.convexId = id;
       } catch {
-        // Mutation not deployed yet — local stub keeps the flow unblocked.
+        // Backend not deployed/seeded — local stub keeps the flow unblocked.
       }
       saveJson(PRODUCT_KEY, entry);
       setProduct(entry);
     },
-    [createProductMutation],
+    [seedLedgerly],
   );
 
   const resetProduct = useCallback(() => {
@@ -221,17 +260,10 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
 
   const simSeconds = simSecondsOf(clock, nowMs);
 
-  // ---- Live Convex overlays (opt-in until the foundation lands) ----
-  const liveResidents = useQuery(
-    residentOverviewsRef,
-    LAUNCHTOWN_LIVE ? {} : 'skip',
-  ) as ResidentSnapshot[] | undefined;
-  const liveMetrics = useQuery(townMetricsRef, LAUNCHTOWN_LIVE ? {} : 'skip') as
-    | TownMetrics
-    | undefined;
-  const livePulses = useQuery(influencePulsesRef, LAUNCHTOWN_LIVE ? {} : 'skip') as
-    | InfluencePulse[]
-    | undefined;
+  const liveSnapshotMap = useMemo(
+    () => (liveData ? liveSnapshots(liveData) : undefined),
+    [liveData],
+  );
 
   const assignmentCache = useRef<{ key: string; map: Map<string, string> }>();
   const assignmentFor = useCallback((allPlayerNames: string[]) => {
@@ -245,11 +277,11 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const residentForPlayer = useCallback(
     (playerName: string, allPlayerNames: string[]): ResidentSnapshot => {
       const resident = assignmentFor(allPlayerNames).get(playerName) ?? playerName;
-      const live = liveResidents?.find((r) => r.resident === resident);
+      const live = liveSnapshotMap?.get(resident);
       if (live) return live;
       return scenarioSnapshot(resident, simSeconds);
     },
-    [assignmentFor, liveResidents, simSeconds],
+    [assignmentFor, liveSnapshotMap, simSeconds],
   );
 
   const playerNameForResident = useCallback(
@@ -264,14 +296,14 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   );
 
   const pulses = useMemo<InfluencePulse[]>(() => {
-    if (livePulses) return livePulses;
+    if (liveData) return livePulses(liveData, nowMs);
     if (!clock.running) return [];
     return scenarioPulses(simSeconds);
-  }, [livePulses, clock.running, simSeconds]);
+  }, [liveData, nowMs, clock.running, simSeconds]);
 
   const metrics = useCallback(
     (allPlayerNames: string[]): TownMetrics => {
-      if (liveMetrics) return liveMetrics;
+      if (liveSnapshotMap) return liveMetrics(liveSnapshotMap);
       const snapshots = allPlayerNames.map((n) => residentForPlayer(n, allPlayerNames));
       const counts = Object.fromEntries(STAGE_ORDER.map((s) => [s, 0])) as TownMetrics['stageCounts'];
       const avg = { awareness: 0, curiosity: 0, trust: 0, intent: 0 };
@@ -293,7 +325,7 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
         stageCounts: counts,
       };
     },
-    [liveMetrics, residentForPlayer],
+    [liveSnapshotMap, residentForPlayer],
   );
 
   const value = useMemo<LaunchTownValue>(
@@ -329,7 +361,14 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <LaunchTownContext.Provider value={value}>{children}</LaunchTownContext.Provider>;
+  return (
+    <LaunchTownContext.Provider value={value}>
+      <LiveBoundary>
+        <LiveScenarioBridge onData={setLiveScenario} />
+      </LiveBoundary>
+      {children}
+    </LaunchTownContext.Provider>
+  );
 }
 
 export function useLaunchTown(): LaunchTownValue {

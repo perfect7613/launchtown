@@ -51,7 +51,22 @@ export default function Game() {
   const followedSnapshot = followedName
     ? lt.residentForPlayer(followedName, allNames)
     : undefined;
-  const followedActivity = followedSnapshot?.activity;
+  // Live AI Town conversation membership also counts as "talking" (the
+  // Convex adapter only reports browsing/idle).
+  const followedPlayer = followedPlayerId && game?.world.players.get(followedPlayerId);
+  const followedInConversation = !!(
+    followedPlayer &&
+    game &&
+    game.world.playerConversation(followedPlayer)?.participants.get(followedPlayer.id)?.status
+      .kind === 'participating'
+  );
+  const followedActivity =
+    followedSnapshot &&
+    (followedSnapshot.activity === 'browsing'
+      ? 'browsing'
+      : followedInConversation || followedSnapshot.activity === 'talking'
+        ? 'talking'
+        : 'idle');
   useEffect(() => {
     if (!followedPlayerId || !followedActivity) return;
     setSelectedElement({ kind: 'player', id: followedPlayerId });
