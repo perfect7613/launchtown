@@ -69,8 +69,7 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
   }
 
   async createRun(taskPrompt: string): Promise<BrowserRunHandle> {
-    if (!taskPrompt.trim())
-      throw new Error("A browser task prompt is required.");
+    if (!taskPrompt.trim()) throw new Error("A browser task prompt is required.");
 
     const body = asRecord(
       await this.request("/tasks", {
@@ -184,9 +183,7 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
 
       if (update.terminal) {
         if (update.status !== "completed" || !update.output) {
-          throw new BrowserUseError(
-            update.error ?? `Browser run ${update.status}.`,
-          );
+          throw new BrowserUseError(update.error ?? `Browser run ${update.status}.`);
         }
         return {
           runId: update.runId,
@@ -196,19 +193,14 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
       }
 
       if (Date.now() - startedAt >= timeoutMs) {
-        throw new BrowserUseError(
-          "Timed out waiting for browser run completion.",
-        );
+        throw new BrowserUseError("Timed out waiting for browser run completion.");
       }
       run = update;
       await delay(pollIntervalMs, signal);
     }
   }
 
-  private async request(
-    path: string,
-    init: RequestInit = {},
-  ): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
     const response = await this.fetcher(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -239,9 +231,7 @@ function parseOutput(value: unknown): BrowserJourneyOutput {
   try {
     decoded = JSON.parse(value) as unknown;
   } catch {
-    throw new BrowserUseError(
-      "Completed V2 browser run returned invalid JSON.",
-    );
+    throw new BrowserUseError("Completed V2 browser run returned invalid JSON.");
   }
   const parsed = BrowserJourneyOutputSchema.safeParse(decoded);
   if (!parsed.success) {
@@ -291,10 +281,7 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   }
 }
 
-async function delay(
-  ms: number,
-  signal: AbortSignal | undefined,
-): Promise<void> {
+async function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
   if (ms <= 0) return;
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(resolve, ms);

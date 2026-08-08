@@ -44,10 +44,7 @@ export interface WaitForCompletionOptions {
 
 export interface BrowserJourneyRunner {
   createRun(taskPrompt: string): Promise<BrowserRunHandle>;
-  pollRun(
-    run: BrowserRunHandle,
-    signal?: AbortSignal,
-  ): Promise<BrowserRunUpdate>;
+  pollRun(run: BrowserRunHandle, signal?: AbortSignal): Promise<BrowserRunUpdate>;
   waitForCompletion(
     run: BrowserRunHandle,
     options?: WaitForCompletionOptions,
@@ -96,8 +93,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
   }
 
   async createRun(taskPrompt: string): Promise<BrowserRunHandle> {
-    if (!taskPrompt.trim())
-      throw new Error("A browser task prompt is required.");
+    if (!taskPrompt.trim()) throw new Error("A browser task prompt is required.");
 
     const body = await this.request("/runs", {
       method: "POST",
@@ -262,9 +258,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
       }
 
       if (Date.now() - startedAt >= timeoutMs) {
-        throw new BrowserUseError(
-          "Timed out waiting for browser run completion.",
-        );
+        throw new BrowserUseError("Timed out waiting for browser run completion.");
       }
 
       run = {
@@ -277,10 +271,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     }
   }
 
-  private async request(
-    path: string,
-    init: RequestInit = {},
-  ): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
     const response = await this.fetcher(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -356,9 +347,7 @@ function requireEvents(value: unknown): RunEvent[] {
       id: event.id,
       type: event.type,
       data:
-        event.data &&
-        typeof event.data === "object" &&
-        !Array.isArray(event.data)
+        event.data && typeof event.data === "object" && !Array.isArray(event.data)
           ? (event.data as Record<string, unknown>)
           : {},
     };
@@ -381,10 +370,7 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   }
 }
 
-async function delay(
-  ms: number,
-  signal: AbortSignal | undefined,
-): Promise<void> {
+async function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
   if (ms <= 0) return;
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(resolve, ms);
