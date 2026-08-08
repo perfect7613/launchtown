@@ -56,7 +56,14 @@ export interface LiveInfluenceEvent {
   causedBrowserRunId?: string;
   createdAt: number;
 }
+export interface LiveProduct {
+  url: string;
+  name: string;
+  analysisStatus: 'seeded' | 'pending' | 'complete';
+  productModel?: { category: string };
+}
 export interface LiveScenario {
+  product?: LiveProduct;
   profiles: LiveProfile[];
   states: LiveState[];
   edges: LiveEdge[];

@@ -31,6 +31,8 @@ export default function Onboarding() {
     setBusy(true);
     try {
       await createProduct(url);
+    } catch {
+      setError('Could not analyze that website. Check the URL and try again.');
     } finally {
       setBusy(false);
     }
