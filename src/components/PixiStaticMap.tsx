@@ -6,6 +6,7 @@ import * as gentlesparkle from '../../data/animations/gentlesparkle.json';
 import * as gentlewaterfall from '../../data/animations/gentlewaterfall.json';
 import * as gentlesplash from '../../data/animations/gentlesplash.json';
 import * as windmill from '../../data/animations/windmill.json';
+import { normalizeMapAssetUrl } from './mapAssetUrl';
 
 const animations = {
   'campfire.json': { spritesheet: campfire, url: '/assets/spritesheets/campfire.png' },
@@ -29,7 +30,7 @@ export const PixiStaticMap = PixiComponent('StaticMap', {
     const map = props.map;
     const numxtiles = Math.floor(map.tileSetDimX / map.tileDim);
     const numytiles = Math.floor(map.tileSetDimY / map.tileDim);
-    const bt = PIXI.BaseTexture.from(map.tileSetUrl, {
+    const bt = PIXI.BaseTexture.from(normalizeMapAssetUrl(map.tileSetUrl), {
       scaleMode: PIXI.SCALE_MODES.NEAREST,
     });
 
