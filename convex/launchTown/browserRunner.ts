@@ -1,7 +1,7 @@
 'use node';
 
 import { v } from 'convex/values';
-import { action } from '../_generated/server';
+import { internalAction } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { fetchEmbedding } from '../util/llm';
@@ -43,7 +43,7 @@ async function runLiveWithRetry(
  * Single integration boundary for visit decisions. Live browsing is opt-in and
  * hard-gated to Rohan; every resident has a validated fallback.
  */
-export const runForResident = action({
+export const runForResident = internalAction({
   args: {
     productId: v.id('products'),
     residentKey: v.string(),
