@@ -8,6 +8,8 @@ test('preserves the deployed simulation control state when serializing a world',
     agents: [],
     simulationControl: {
       conversationStarts: 2,
+      elapsedSimulationMs: 12_000,
+      lastSpeedChangedAt: 1_786_179_299_499,
       participantIds: ['p:0', 'p:2'],
       speed: 16,
       startedAt: 1_786_179_287_499,
