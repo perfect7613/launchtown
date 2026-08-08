@@ -1,4 +1,5 @@
 import { Stagehand } from "@browserbasehq/stagehand";
+import { combineAbortSignals } from "./abortSignals.js";
 import {
   type BrowserJourneyRunner,
   type BrowserRunHandle,
@@ -159,7 +160,7 @@ export class BrowserbaseStagehandJourneyRunner
 
     const timeoutSignal = AbortSignal.timeout(this.executionTimeoutMs);
     const executionSignal = signal
-      ? AbortSignal.any([signal, timeoutSignal])
+      ? combineAbortSignals(signal, timeoutSignal)
       : timeoutSignal;
     let driver: StagehandDriver | undefined;
 
@@ -204,7 +205,7 @@ export class BrowserbaseStagehandJourneyRunner
     );
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = options.signal
-      ? AbortSignal.any([options.signal, timeoutSignal])
+      ? combineAbortSignals(options.signal, timeoutSignal)
       : timeoutSignal;
     const update = await this.pollRun(run, signal);
     if (!update.output) {

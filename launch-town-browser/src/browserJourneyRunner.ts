@@ -2,6 +2,7 @@ import {
   BrowserJourneyOutputSchema,
   type BrowserJourneyOutput,
 } from "./schemas.js";
+import { combineAbortSignals } from "./abortSignals.js";
 
 export type BrowserRunStatus =
   | "queued"
@@ -230,7 +231,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     const startedAt = Date.now();
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = options.signal
-      ? AbortSignal.any([options.signal, timeoutSignal])
+      ? combineAbortSignals(options.signal, timeoutSignal)
       : timeoutSignal;
     let liveViewUrl: string | undefined;
     let run = { ...initialRun, cursor: options.cursor ?? initialRun.cursor };
