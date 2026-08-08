@@ -23,7 +23,7 @@ export default function Onboarding() {
   const submit = async () => {
     const url = normalizeUrl(value);
     if (!url) {
-      setError('Enter a valid website URL, e.g. https://ledgerly-demo.vercel.app');
+      setError('Enter a valid website URL, e.g. https://ledgerly-demo-six.vercel.app');
       return;
     }
     setError(undefined);
@@ -55,7 +55,7 @@ export default function Onboarding() {
             autoFocus
             type="text"
             inputMode="url"
-            placeholder="https://ledgerly-demo.vercel.app"
+            placeholder="https://ledgerly-demo-six.vercel.app"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="flex-grow rounded-md border-2 border-clay-500 bg-[#10131f] px-4 py-3 text-lg text-white placeholder:text-clay-500 focus:border-yellow-400 focus:ring-0 font-body"

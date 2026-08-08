@@ -74,7 +74,7 @@ function demoParams(): { productUrl?: string; autostart: boolean } {
     const params = new URLSearchParams(window.location.search);
     let productUrl = params.get('product') ?? undefined;
     if (!productUrl && window.location.pathname.includes('/demo')) {
-      productUrl = 'https://ledgerly-demo.vercel.app';
+      productUrl = 'https://ledgerly-demo-six.vercel.app';
     }
     return { productUrl, autostart: params.get('autostart') === '1' };
   } catch {
