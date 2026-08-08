@@ -27,6 +27,25 @@ ANTHROPIC_API_KEY=...
 The live view URL is a credential. The runner returns it to the caller but does
 not log it or include response bodies in error messages.
 
+## Live/fallback switch
+
+One server-side flag selects the backend. It defaults to the fallback and does
+not construct a cloud client or consume credits:
+
+```sh
+BROWSER_JOURNEY_MODE=fallback # fallback | v2 | v4
+```
+
+```ts
+const backend = createBrowserJourneyBackend();
+
+if (backend.kind === "fallback") {
+  const journey = backend.getJourney("Rohan");
+} else {
+  const run = await backend.runner.createRun(taskPrompt);
+}
+```
+
 ## Verify
 
 ```sh
