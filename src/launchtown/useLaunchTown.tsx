@@ -94,7 +94,7 @@ export interface LaunchTownValue {
   simRunning: boolean;
   simSeconds: number;
   speed: SimSpeed;
-  productAnalysisStatus?: 'seeded' | 'pending' | 'complete';
+  productAnalysisStatus?: 'seeded' | 'pending' | 'running' | 'complete' | 'failed';
   productCategory?: string;
   startSimulation: () => void;
   resetSimulation: () => void;

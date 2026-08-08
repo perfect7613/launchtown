@@ -59,7 +59,7 @@ export interface LiveInfluenceEvent {
 export interface LiveProduct {
   url: string;
   name: string;
-  analysisStatus: 'seeded' | 'pending' | 'complete';
+  analysisStatus: 'seeded' | 'pending' | 'running' | 'complete' | 'failed';
   productModel?: { category: string };
 }
 export interface LiveScenario {

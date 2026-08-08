@@ -28,7 +28,13 @@ export default defineSchema({
     slug: v.string(),
     name: v.string(),
     url: v.string(),
-    analysisStatus: v.union(v.literal('seeded'), v.literal('pending'), v.literal('complete')),
+    analysisStatus: v.union(
+      v.literal('seeded'),
+      v.literal('pending'),
+      v.literal('running'),
+      v.literal('complete'),
+      v.literal('failed'),
+    ),
     productModel: v.optional(
       v.object({
         category: v.string(),
@@ -138,6 +144,12 @@ export default defineSchema({
     lastClockAt: v.optional(v.number()),
     updatedAt: v.number(),
   }).index('slug', ['slug']),
+
+  launchTownSettings: defineTable({
+    key: v.string(),
+    count: v.number(),
+    limit: v.number(),
+  }).index('key', ['key']),
 
   ...agentTables,
   ...aiTownTables,
