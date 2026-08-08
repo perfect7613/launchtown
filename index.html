@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" sizes="any" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Allow embedding Browserbase live views (debuggerFullscreenUrl) and nothing else.
+         connect.browserbase.com is the iframe's own WebSocket backend — not our frame origin. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="frame-src 'self' https://www.browserbase.com;"
+    />
     <title>LaunchTown — Rehearse Your Launch</title>
     <meta
       name="description"

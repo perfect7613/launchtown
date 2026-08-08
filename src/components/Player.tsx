@@ -10,6 +10,8 @@ import { useHistoricalValue } from '../hooks/useHistoricalValue.ts';
 import { PlayerDescription } from '../../convex/aiTown/playerDescription.ts';
 import { WorldMap } from '../../convex/aiTown/worldMap.ts';
 import { ServerGame } from '../hooks/serverGame.ts';
+import { useLaunchTown } from '../launchtown/useLaunchTown.tsx';
+import { STAGE_META } from '../launchtown/types.ts';
 
 export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }) => void;
 
@@ -34,6 +36,12 @@ export const Player = ({
     throw new Error(`Player ${player.id} has no character`);
   }
   const character = characters.find((c) => c.name === playerCharacter);
+
+  // LaunchTown: funnel-stage ring + browsing indicator.
+  const lt = useLaunchTown();
+  const playerName = game.playerDescriptions.get(player.id)?.name;
+  const allNames = [...game.playerDescriptions.values()].map((d) => d.name);
+  const snapshot = playerName ? lt.residentForPlayer(playerName, allNames) : undefined;
 
   const locationBuffer = game.world.historicalLocations?.get(player.id);
   const historicalLocation = useHistoricalValue<Location>(
@@ -82,6 +90,8 @@ export const Player = ({
         textureUrl={character.textureUrl}
         spritesheetData={character.spritesheetData}
         speed={character.speed}
+        ringColor={snapshot ? STAGE_META[snapshot.stage].hex : undefined}
+        isBrowsing={snapshot?.activity === 'browsing'}
         onClick={() => {
           onClick({ kind: 'player', id: player.id });
         }}

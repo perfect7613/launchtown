@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- LaunchTown favicon: dark night tile with a lit house -->
+  <rect width="32" height="32" rx="6" fill="#10131f"/>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="5" fill="none" stroke="#3a4466" stroke-width="1.5"/>
+  <!-- roof -->
+  <path d="M6 16 L16 7 L26 16 Z" fill="#facc15"/>
+  <!-- body -->
+  <rect x="9" y="16" width="14" height="10" fill="#dd7c42"/>
+  <!-- door -->
+  <rect x="14" y="19" width="4" height="7" fill="#10131f"/>
+  <!-- lit window -->
+  <rect x="20" y="18.5" width="3" height="3" fill="#fec742"/>
+  <!-- moon -->
+  <circle cx="26" cy="6.5" r="2.2" fill="#c0cbdc"/>
+</svg>
