@@ -50,6 +50,7 @@ export const memoryFields = {
 export const memoryTables = {
   memories: defineTable(memoryFields)
     .index('embeddingId', ['embeddingId'])
+    .index('product', ['data.productId'])
     .index('playerId_type', ['playerId', 'data.type'])
     .index('playerId', ['playerId']),
   memoryEmbeddings: defineTable({
