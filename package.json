@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@bolna/web-call": "https://github.com/bolna-ai/web-call/archive/refs/tags/v3.0.0.tar.gz",
     "@browserbasehq/stagehand": "^3.7.1",
     "@pixi/react": "7.1.0",
     "@tailwindcss/forms": "^0.5.3",

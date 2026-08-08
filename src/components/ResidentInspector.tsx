@@ -8,6 +8,7 @@ import { Messages } from './Messages';
 import { GameId } from '../../convex/aiTown/ids';
 import { ServerGame } from '../hooks/serverGame';
 import { useLaunchTown } from '../launchtown/useLaunchTown';
+import { ResidentVoiceCall } from './ResidentVoiceCall';
 import {
   Belief,
   InspectorTab,
@@ -97,13 +98,7 @@ function MindTab({ snapshot }: { snapshot: ResidentSnapshot }) {
         </ul>
       )}
 
-      <button
-        disabled
-        title="Voice interviews (Bolna) land after the P0 cascade is green"
-        className="mt-5 w-full rounded border-2 border-dashed border-clay-500 py-2 text-clay-100/50 cursor-not-allowed font-body"
-      >
-        📞 Call {snapshot.resident} — coming up
-      </button>
+      <ResidentVoiceCall resident={snapshot.resident} />
     </div>
   );
 }
