@@ -12,12 +12,21 @@ export const historicalLocations = v.array(
   }),
 );
 
+const serializedSimulationControl = {
+  conversationStarts: v.number(),
+  participantIds: v.array(playerId),
+  speed: v.number(),
+  startedAt: v.number(),
+};
+type SerializedSimulationControl = ObjectType<typeof serializedSimulationControl>;
+
 export const serializedWorld = {
   nextId: v.number(),
   conversations: v.array(v.object(serializedConversation)),
   players: v.array(v.object(serializedPlayer)),
   agents: v.array(v.object(serializedAgent)),
   historicalLocations: v.optional(historicalLocations),
+  simulationControl: v.optional(v.object(serializedSimulationControl)),
 };
 export type SerializedWorld = ObjectType<typeof serializedWorld>;
 
@@ -27,14 +36,16 @@ export class World {
   players: Map<GameId<'players'>, Player>;
   agents: Map<GameId<'agents'>, Agent>;
   historicalLocations?: Map<GameId<'players'>, ArrayBuffer>;
+  simulationControl?: SerializedSimulationControl;
 
   constructor(serialized: SerializedWorld) {
-    const { nextId, historicalLocations } = serialized;
+    const { nextId, historicalLocations, simulationControl } = serialized;
 
     this.nextId = nextId;
     this.conversations = parseMap(serialized.conversations, Conversation, (c) => c.id);
     this.players = parseMap(serialized.players, Player, (p) => p.id);
     this.agents = parseMap(serialized.agents, Agent, (a) => a.id);
+    this.simulationControl = simulationControl;
 
     if (historicalLocations) {
       this.historicalLocations = new Map();
@@ -60,6 +71,7 @@ export class World {
           playerId,
           location,
         })),
+      simulationControl: this.simulationControl,
     };
   }
 }
