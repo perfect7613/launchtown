@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BolnaWebCall, CallError, CallState } from '@bolna/web-call';
+import type { Id } from '../../convex/_generated/dataModel';
+import { voiceEndpoint } from './voiceEndpoint';
 
 export type InterviewCallState = 'idle' | 'connecting' | 'active';
 
@@ -9,15 +11,7 @@ const toInterviewState = (state: CallState): InterviewCallState => {
   return 'idle';
 };
 
-function voiceSessionUrl(): string {
-  const configured = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
-  if (configured) return `${configured.replace(/\/$/, '')}/bolna/session`;
-  const cloudUrl = import.meta.env.VITE_CONVEX_URL as string | undefined;
-  if (!cloudUrl) throw new Error('Voice session endpoint is not configured.');
-  return `${cloudUrl.replace(/\.convex\.cloud\/?$/, '.convex.site')}/bolna/session`;
-}
-
-export function useBolnaCall(residentKey: string) {
+export function useBolnaCall(residentKey: string, productId?: Id<'products'>) {
   const callRef = useRef<BolnaWebCall>();
   const [state, setState] = useState<InterviewCallState>('idle');
   const [error, setError] = useState<CallError>();
@@ -37,8 +31,8 @@ export function useBolnaCall(residentKey: string) {
     setState('connecting');
     try {
       const call = new BolnaWebCall({
-        sessionUrl: voiceSessionUrl(),
-        userData: { residentKey },
+        sessionUrl: voiceEndpoint('/bolna/session'),
+        userData: { residentKey, productId },
       });
       call.on('state-change', (next) => setState(toInterviewState(next)));
       call.on('volume-level', setVolume);
@@ -64,7 +58,7 @@ export function useBolnaCall(residentKey: string) {
           : { code: 'connect_failed', message: 'Could not connect the resident interview.' },
       );
     }
-  }, [residentKey, state]);
+  }, [productId, residentKey, state]);
 
   useEffect(
     () => () => {

@@ -7,9 +7,13 @@ import { engineTables } from './engine/schema';
 import {
   behavioralSuggestion,
   browserResult,
+  bolnaExecutionStatus,
   influenceSignals,
+  outboundCallStatus,
+  outboundFailureCode,
   productBelief,
   residentStage,
+  safeCallFinding,
   transferredBelief,
 } from './launchTown/validators';
 import { reportArtifactValidator } from './launchTown/reportArtifactValidator';
@@ -127,6 +131,27 @@ export default defineSchema({
   })
     .index('product', ['productId'])
     .index('product_resident', ['productId', 'residentKey']),
+
+  outboundVoiceCalls: defineTable({
+    productId: v.id('products'),
+    residentKey: v.string(),
+    executionId: v.optional(v.string()),
+    status: outboundCallStatus,
+    providerStatus: v.optional(bolnaExecutionStatus),
+    active: v.boolean(),
+    destinationMask: v.string(),
+    provider: v.union(v.literal('vobiz'), v.literal('unknown')),
+    failureCode: v.optional(outboundFailureCode),
+    findings: v.optional(v.array(safeCallFinding)),
+    requestedAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    durationSeconds: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index('active', ['active'])
+    .index('requestedAt', ['requestedAt'])
+    .index('product_resident_requestedAt', ['productId', 'residentKey', 'requestedAt']),
 
   scenarioPhases: defineTable({
     productId: v.id('products'),
