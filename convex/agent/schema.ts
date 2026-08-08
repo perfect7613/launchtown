@@ -6,7 +6,9 @@ import { EMBEDDING_DIMENSION } from '../util/llm';
 export const memoryFields = {
   playerId,
   description: v.string(),
-  embeddingId: v.id('memoryEmbeddings'),
+  // Seeded demo memories may be recency-only until an embedding provider is configured.
+  // Vector-backed AI Town retrieval remains unchanged for every embedded memory.
+  embeddingId: v.optional(v.id('memoryEmbeddings')),
   importance: v.number(),
   lastAccess: v.number(),
   data: v.union(
@@ -26,6 +28,22 @@ export const memoryFields = {
     v.object({
       type: v.literal('reflection'),
       relatedMemoryIds: v.array(v.id('memories')),
+    }),
+    v.object({
+      type: v.literal('productExperience'),
+      productId: v.id('products'),
+      browserRunId: v.optional(v.id('browserRuns')),
+      outcome: v.string(),
+      pagesVisited: v.array(v.string()),
+      observedAt: v.number(),
+    }),
+    v.object({
+      type: v.literal('productHearsay'),
+      productId: v.id('products'),
+      sourceResidentKey: v.string(),
+      claim: v.string(),
+      confidence: v.number(),
+      heardAt: v.number(),
     }),
   ),
 };

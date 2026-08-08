@@ -3,10 +3,12 @@ import Game from './components/Game.tsx';
 import Onboarding from './components/Onboarding.tsx';
 import FreezeButton from './components/FreezeButton.tsx';
 import PoweredByConvex from './components/PoweredByConvex.tsx';
+import DemoControls from './components/DemoControls.tsx';
 import { LaunchTownProvider, useLaunchTown } from './launchtown/useLaunchTown.tsx';
 
 function Shell() {
   const { product } = useLaunchTown();
+  const isLedgerlyDemo = window.location.pathname === '/demo/ledgerly';
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
       <PoweredByConvex />
@@ -26,6 +28,7 @@ function Shell() {
             </div>
           )}
         </div>
+        {isLedgerlyDemo && <DemoControls />}
         {product ? <Game /> : <Onboarding />}
         <footer className="justify-end bottom-0 left-0 w-full flex items-center mt-4 gap-3 p-6 flex-wrap pointer-events-none">
           <div className="flex gap-4 flex-grow pointer-events-none">

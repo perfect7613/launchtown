@@ -81,6 +81,26 @@ export async function rememberConversation(
     },
     embedding,
   });
+  const product = await ctx.runQuery(internal.launchTown.influenceModel.activeProduct, {});
+  if (product) {
+    const transcript = messages
+      .map((message) => {
+        const author = message.author === player.id ? player.name : otherPlayer.name;
+        return `${author}: ${message.text}`;
+      })
+      .join('\n');
+    await ctx.scheduler.runAfter(
+      0,
+      internal.launchTown.influenceActions.extractConversationInfluence,
+      {
+        productId: product._id,
+        conversationId,
+        speaker: otherPlayer.name,
+        listener: player.name,
+        transcript,
+      },
+    );
+  }
   await reflectOnMemories(ctx, worldId, playerId);
   return description;
 }
