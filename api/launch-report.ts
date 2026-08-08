@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { createClaudeReportAgent } from './_lib/claudeReportAgent';
-import { createConvexReportRepository } from './_lib/convexReportRepository';
-import { createReportToolHandlers } from './_lib/reportTools';
-import { generateReportArtifact } from '../src/launchReport/report';
+import type { ConvexReportRepository } from './_lib/convexReportRepository';
+import type { ReportArtifact } from '../src/launchReport/report';
 
 const requestSchema = z.object({
   productId: z.string().min(1).max(128),
@@ -27,9 +25,9 @@ interface ApiResponse {
 
 async function sendPdf(
   response: ApiResponse,
-  repository: ReturnType<typeof createConvexReportRepository>,
+  repository: ConvexReportRepository,
   productId: string,
-  artifact: Awaited<ReturnType<typeof generateReportArtifact>>,
+  artifact: ReportArtifact,
 ) {
   const { renderLaunchReportPdf } = await import('../src/launchReport/pdf');
   const [simulationRun, browserRuns, residentStates, influenceEvents] = await Promise.all([
@@ -71,6 +69,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
   try {
     const { productId, format } = requestSchema.parse(request.body);
+    const { createConvexReportRepository } = await import('./_lib/convexReportRepository');
     const repository = createConvexReportRepository(convexUrl, gateSecret);
     const leaseId = randomUUID();
     const claim = await repository.beginReportGeneration(productId, leaseId);
@@ -99,6 +98,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
 
+    const [{ createReportToolHandlers }, { createClaudeReportAgent }, { generateReportArtifact }] =
+      await Promise.all([
+        import('./_lib/reportTools'),
+        import('./_lib/claudeReportAgent'),
+        import('../src/launchReport/report'),
+      ]);
     const tools = createReportToolHandlers(repository, productId);
     const agent = createClaudeReportAgent(tools, productId);
     try {
