@@ -85,7 +85,8 @@ export const residentSeeds = [
       noveltySeeking: 0.95,
       patience: 0.5,
     },
-    identity: 'Dev is an energetic early adopter who enjoys trying new software before everyone else.',
+    identity:
+      'Dev is an energetic early adopter who enjoys trying new software before everyone else.',
     plan: 'Discover novel products quickly and share interesting finds.',
   },
   {
@@ -143,4 +144,3 @@ export const residentSeeds = [
     plan: 'Form a measured opinion from evidence and people he trusts.',
   },
 ] as const;
-

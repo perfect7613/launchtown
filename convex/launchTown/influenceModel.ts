@@ -8,7 +8,10 @@ import { behavioralSuggestion, influenceSignals, transferredBelief } from './val
 export const activeProduct = internalQuery({
   args: {},
   handler: async (ctx) =>
-    await ctx.db.query('products').withIndex('slug', (q) => q.eq('slug', 'ledgerly')).unique(),
+    await ctx.db
+      .query('products')
+      .withIndex('slug', (q) => q.eq('slug', 'ledgerly'))
+      .unique(),
 });
 
 export const applyExtractedInfluence = internalMutation({
@@ -120,4 +123,3 @@ export const insertHearsayMemory = internalMutation({
     }
   },
 });
-

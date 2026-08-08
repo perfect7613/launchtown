@@ -57,4 +57,3 @@ test('idles below the threshold with no social opportunity', () => {
     ).kind,
   ).toBe('idle');
 });
-

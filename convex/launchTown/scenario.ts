@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { mutation, query } from '../_generated/server';
+import { internal } from '../_generated/api';
 import { residentSeeds } from '../../data/residents';
 
 const LEDGERLY_SLUG = 'ledgerly';
@@ -24,12 +25,30 @@ export const getLedgerly = query({
       .unique();
     if (!product) return null;
     const [profiles, states, edges, phase, browserRuns, influenceEvents] = await Promise.all([
-      ctx.db.query('residentProfiles').withIndex('product', (q) => q.eq('productId', product._id)).collect(),
-      ctx.db.query('residentStates').withIndex('product', (q) => q.eq('productId', product._id)).collect(),
-      ctx.db.query('socialEdges').withIndex('product', (q) => q.eq('productId', product._id)).collect(),
-      ctx.db.query('scenarioPhases').withIndex('slug', (q) => q.eq('slug', LEDGERLY_SLUG)).unique(),
-      ctx.db.query('browserRuns').withIndex('product', (q) => q.eq('productId', product._id)).collect(),
-      ctx.db.query('influenceEvents').withIndex('product', (q) => q.eq('productId', product._id)).collect(),
+      ctx.db
+        .query('residentProfiles')
+        .withIndex('product', (q) => q.eq('productId', product._id))
+        .collect(),
+      ctx.db
+        .query('residentStates')
+        .withIndex('product', (q) => q.eq('productId', product._id))
+        .collect(),
+      ctx.db
+        .query('socialEdges')
+        .withIndex('product', (q) => q.eq('productId', product._id))
+        .collect(),
+      ctx.db
+        .query('scenarioPhases')
+        .withIndex('slug', (q) => q.eq('slug', LEDGERLY_SLUG))
+        .unique(),
+      ctx.db
+        .query('browserRuns')
+        .withIndex('product', (q) => q.eq('productId', product._id))
+        .collect(),
+      ctx.db
+        .query('influenceEvents')
+        .withIndex('product', (q) => q.eq('productId', product._id))
+        .collect(),
     ]);
     return { product, profiles, states, edges, phase, browserRuns, influenceEvents };
   },
@@ -54,7 +73,11 @@ export const seedLedgerly = mutation({
         category: 'Financial operations SaaS',
         primaryCta: 'Start free trial',
         claims: ['Real-time cash visibility', 'Automated financial workflows'],
-        likelyConcerns: ['Requests bank access early', 'Security of financial data', '$29 monthly price'],
+        likelyConcerns: [
+          'Requests bank access early',
+          'Security of financial data',
+          '$29 monthly price',
+        ],
         conversionProxy: 'Reach the bank-connection boundary without connecting a real account',
       },
     });
@@ -172,6 +195,41 @@ export const startSimulation = mutation({
       .unique();
     if (!phase) throw new Error('Seed Ledgerly before starting the simulation');
     const now = Date.now();
+    const states = await ctx.db
+      .query('residentStates')
+      .withIndex('product', (q) => q.eq('productId', phase.productId))
+      .collect();
+    for (const state of states) {
+      const isPriya = state.residentKey === 'priya';
+      await ctx.db.patch(state._id, {
+        ...INITIAL_STATE,
+        ...(isPriya
+          ? {
+              awareness: 1,
+              curiosity: 0.65,
+              trust: 0.32,
+              purchaseIntent: 0.28,
+              sentiment: -0.15,
+              stage: 'evaluating' as const,
+              expectedFriction: 0.7,
+              productBeliefs: [
+                {
+                  claim: 'Ledgerly is useful, but asks for bank access too early',
+                  confidence: 0.92,
+                  source: 'priya',
+                  origin: 'observed' as const,
+                },
+              ],
+            }
+          : {}),
+        updatedAt: now,
+      });
+    }
+    const previousEvents = await ctx.db
+      .query('influenceEvents')
+      .withIndex('product', (q) => q.eq('productId', phase.productId))
+      .collect();
+    for (const event of previousEvents) await ctx.db.delete(event._id);
     await ctx.db.patch(phase._id, {
       phase: 'priyaToRohan',
       elapsedSimulationMs: 0,
@@ -179,6 +237,18 @@ export const startSimulation = mutation({
       lastClockAt: now,
       updatedAt: now,
     });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.launchTown.influenceActions.extractConversationInfluence,
+      {
+        productId: phase.productId,
+        conversationId: 'demo-priya-rohan',
+        speaker: 'priya',
+        listener: 'rohan',
+        transcript:
+          'Priya: Ledgerly looked useful for cash visibility, but it asked for bank access far too early. That felt sketchy, so I postponed signup. Rohan: I trust your warning; I will investigate their security claims myself.',
+      },
+    );
   },
 });
 
@@ -224,4 +294,3 @@ export const advanceScenarioClock = mutation({
     return phase;
   },
 });
-

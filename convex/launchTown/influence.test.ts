@@ -64,4 +64,3 @@ test('rejects an event addressed to a different resident', () => {
     'does not match',
   );
 });
-

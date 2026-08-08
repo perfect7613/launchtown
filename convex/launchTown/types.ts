@@ -48,4 +48,3 @@ export type InfluenceEvent = {
   }>;
   behavioralSuggestion: 'investigate' | 'visit' | 'avoid' | 'share' | 'none';
 };
-

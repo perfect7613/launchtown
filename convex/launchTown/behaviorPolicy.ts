@@ -29,7 +29,13 @@ export const loadBehaviorContext = internalQuery({
       )
       .unique();
     if (!profile || !state) return null;
-    return { product, profile, state };
+    const latestBrowserRun = await ctx.db
+      .query('browserRuns')
+      .withIndex('product_resident', (q) =>
+        q.eq('productId', product._id).eq('residentKey', residentKey),
+      )
+      .order('desc')
+      .first();
+    return { product, profile, state, latestBrowserRun };
   },
 });
-

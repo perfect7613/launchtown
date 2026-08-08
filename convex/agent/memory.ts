@@ -89,13 +89,17 @@ export async function rememberConversation(
         return `${author}: ${message.text}`;
       })
       .join('\n');
-    await ctx.scheduler.runAfter(0, internal.launchTown.influenceActions.extractConversationInfluence, {
-      productId: product._id,
-      conversationId,
-      speaker: otherPlayer.name,
-      listener: player.name,
-      transcript,
-    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.launchTown.influenceActions.extractConversationInfluence,
+      {
+        productId: product._id,
+        conversationId,
+        speaker: otherPlayer.name,
+        listener: player.name,
+        transcript,
+      },
+    );
   }
   await reflectOnMemories(ctx, worldId, playerId);
   return description;

@@ -14,11 +14,6 @@ import {
 } from './launchTown/validators';
 
 export default defineSchema({
-  music: defineTable({
-    storageId: v.string(),
-    type: v.union(v.literal('background'), v.literal('player')),
-  }),
-
   messages: defineTable({
     conversationId,
     messageUuid: v.string(),
@@ -118,6 +113,7 @@ export default defineSchema({
     ),
     objective: v.string(),
     liveViewUrl: v.optional(v.string()),
+    fallbackNotice: v.optional(v.string()),
     result: v.optional(browserResult),
     createdAt: v.number(),
     updatedAt: v.number(),

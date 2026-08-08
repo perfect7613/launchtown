@@ -6,7 +6,10 @@ import { chatCompletion, fetchEmbedding } from '../util/llm';
 import type { InfluenceEvent, ResidentState } from './types';
 
 function parseInfluenceEvent(raw: string, listener: string, speaker: string): InfluenceEvent {
-  const candidate = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const candidate = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
   const parsed = JSON.parse(candidate) as Partial<InfluenceEvent>;
   if (parsed.listener?.toLowerCase() !== listener) {
     throw new Error('Claude influence event targeted an unexpected listener');
@@ -15,16 +18,21 @@ function parseInfluenceEvent(raw: string, listener: string, speaker: string): In
   if (!parsed.signals || signalNames.some((name) => !Number.isFinite(parsed.signals?.[name]))) {
     throw new Error('Claude influence event contained invalid signals');
   }
-  if (!Array.isArray(parsed.beliefs)) throw new Error('Claude influence event contained invalid beliefs');
+  if (!Array.isArray(parsed.beliefs))
+    throw new Error('Claude influence event contained invalid beliefs');
   const beliefs = parsed.beliefs
-    .filter((belief) => belief && typeof belief.claim === 'string' && Number.isFinite(belief.confidence))
+    .filter(
+      (belief) => belief && typeof belief.claim === 'string' && Number.isFinite(belief.confidence),
+    )
     .map((belief) => ({
       claim: belief.claim,
       confidence: Math.min(1, Math.max(0, belief.confidence)),
       source: speaker,
     }));
   const suggestions = ['investigate', 'visit', 'avoid', 'share', 'none'] as const;
-  const behavioralSuggestion = suggestions.includes(parsed.behavioralSuggestion as (typeof suggestions)[number])
+  const behavioralSuggestion = suggestions.includes(
+    parsed.behavioralSuggestion as (typeof suggestions)[number],
+  )
     ? (parsed.behavioralSuggestion as (typeof suggestions)[number])
     : 'none';
   return {
@@ -88,7 +96,12 @@ export const extractConversationInfluence = internalAction({
         embedding,
       });
     }
+    if (event.behavioralSuggestion === 'investigate' || event.behavioralSuggestion === 'visit') {
+      await ctx.scheduler.runAfter(0, internal.launchTown.behaviorActions.decideAfterInfluence, {
+        productId: args.productId,
+        residentKey: listener,
+      });
+    }
     return applied;
   },
 });
-

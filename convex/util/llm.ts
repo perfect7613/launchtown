@@ -7,7 +7,7 @@ export const EMBEDDING_DIMENSION: number = OPENAI_EMBEDDING_DIMENSION;
 
 export function detectMismatchedLLMProvider() {
   if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is required for Claude cognition");
+    throw new Error('ANTHROPIC_API_KEY is required for Claude cognition');
   }
   if (!process.env.OPENAI_API_KEY && !process.env.TOGETHER_API_KEY) {
     throw new Error('OPENAI_API_KEY or TOGETHER_API_KEY is required for memory embeddings');

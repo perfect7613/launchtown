@@ -13,7 +13,11 @@ export default function DemoControls() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    if (!scenario?.phase || scenario.phase.phase === 'seeded' || scenario.phase.phase === 'complete') {
+    if (
+      !scenario?.phase ||
+      scenario.phase.phase === 'seeded' ||
+      scenario.phase.phase === 'complete'
+    ) {
       return;
     }
     const timer = window.setInterval(() => void advanceClock(), 1_000);
@@ -58,7 +62,7 @@ export default function DemoControls() {
           type="button"
           className="pointer-events-auto rounded bg-emerald-500 px-4 py-2 font-bold text-brown-900 disabled:opacity-60"
           onClick={() => void start()}
-          disabled={starting || (!!scenario?.phase && scenario.phase.phase !== 'seeded')}
+          disabled={starting}
         >
           {starting ? 'Starting…' : 'Start Simulation'}
         </button>
@@ -66,4 +70,3 @@ export default function DemoControls() {
     </section>
   );
 }
-

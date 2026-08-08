@@ -46,4 +46,3 @@ export const browserResult = v.object({
   intentDelta: v.number(),
   shareLikelihood: v.number(),
 });
-

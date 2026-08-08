@@ -115,11 +115,13 @@ export const agentDoSomething = internalAction({
       { worldId: args.worldId, playerId: player.id },
     );
     const nextAction = behaviorContext
-      ? decideNextAction(behaviorContext.profile, behaviorContext.state, {
-          socialProof: behaviorContext.state.socialProof,
-          expectedFriction: behaviorContext.state.expectedFriction,
-          hasAvailablePeer: args.otherFreePlayers.length > 0,
-        })
+      ? behaviorContext.latestBrowserRun
+        ? ({ kind: 'talk', visitProbability: 1 } as const)
+        : decideNextAction(behaviorContext.profile, behaviorContext.state, {
+            socialProof: behaviorContext.state.socialProof,
+            expectedFriction: behaviorContext.state.expectedFriction,
+            hasAvailablePeer: args.otherFreePlayers.length > 0,
+          })
       : ({ kind: 'idle', visitProbability: 0 } as const);
 
     if (nextAction.kind === 'browse' && !recentActivity) {

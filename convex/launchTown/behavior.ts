@@ -46,4 +46,3 @@ export function decideNextAction(
   }
   return { kind: 'idle', visitProbability: probability };
 }
-
