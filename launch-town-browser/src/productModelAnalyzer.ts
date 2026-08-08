@@ -31,47 +31,55 @@ export class ClaudeProductModelAnalyzer implements ProductModelAnalyzer {
 
     this.client = new Anthropic({ apiKey });
     this.model = options.model ?? DEFAULT_MODEL;
-    this.maxTokens = options.maxTokens ?? 1_024;
+    this.maxTokens = options.maxTokens ?? 4_096;
   }
 
   async analyze(url: string): Promise<ProductModel> {
     const parsedUrl = parsePublicUrl(url);
 
-    const response = await this.client.messages.parse({
-      model: this.model,
-      max_tokens: this.maxTokens,
-      system:
-        "You analyze public product websites for a pre-production user-behavior simulation. Ground every field in the fetched page. Do not invent product capabilities, log in, submit forms, or take consequential actions.",
-      messages: [
-        {
-          role: "user",
-          content: `Fetch and analyze ${parsedUrl.href}. Return a concise Product Model: the product category, its primary CTA, its explicit marketing claims, concerns a prospective customer would likely investigate, and the observable action that serves as a conversion proxy.`,
-        },
-      ],
-      tools: [
-        {
-          type: "web_fetch_20260318",
-          name: "web_fetch",
-          allowed_domains: [parsedUrl.hostname],
-          max_uses: 3,
-          max_content_tokens: 20_000,
-          citations: { enabled: true },
-        },
-      ],
-      tool_choice: { type: "tool", name: "web_fetch" },
-      output_config: {
-        format: zodOutputFormat(ProductModelAnalysisSchema),
+    const messages: Anthropic.MessageParam[] = [
+      {
+        role: "user",
+        content: `Fetch and analyze ${parsedUrl.href}. Return a concise Product Model: the product category, its primary CTA, its explicit marketing claims, concerns a prospective customer would likely investigate, and the observable action that serves as a conversion proxy.`,
       },
-    });
+    ];
+    for (let turn = 0; turn < 3; turn += 1) {
+      const response = await this.client.messages.parse({
+        model: this.model,
+        max_tokens: this.maxTokens,
+        system:
+          "You analyze public product websites for a pre-production user-behavior simulation. Ground every field in the fetched page. Do not invent product capabilities, log in, submit forms, or take consequential actions.",
+        messages,
+        tools: [
+          {
+            type: "web_fetch_20260318",
+            name: "web_fetch",
+            allowed_domains: [parsedUrl.hostname],
+            max_uses: 3,
+            max_content_tokens: 20_000,
+            citations: { enabled: true },
+          },
+        ],
+        // Hosted tools such as web_fetch are invoked by Anthropic's server and
+        // cannot be forced through a direct named tool choice.
+        tool_choice: { type: "auto" },
+        output_config: {
+          format: zodOutputFormat(ProductModelAnalysisSchema),
+        },
+      });
 
-    if (!response.parsed_output) {
-      throw new Error("Claude did not return a valid Product Model.");
+      if (response.parsed_output) {
+        return ProductModelSchema.parse({
+          ...response.parsed_output,
+          url: parsedUrl.href,
+        });
+      }
+      if (response.stop_reason !== "pause_turn") {
+        throw new Error(`Claude did not return a valid Product Model (${response.stop_reason}).`);
+      }
+      messages.push({ role: "assistant", content: response.content });
     }
-
-    return ProductModelSchema.parse({
-      ...response.parsed_output,
-      url: parsedUrl.href,
-    });
+    throw new Error("Claude did not finish the Product Model after three turns.");
   }
 }
 

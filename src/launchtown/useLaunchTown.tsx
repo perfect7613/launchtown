@@ -19,6 +19,7 @@ import React, {
 } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import {
   InfluencePulse,
   ProductEntry,
@@ -93,6 +94,8 @@ export interface LaunchTownValue {
   simRunning: boolean;
   simSeconds: number;
   speed: SimSpeed;
+  productAnalysisStatus?: 'seeded' | 'pending' | 'complete';
+  productCategory?: string;
   startSimulation: () => void;
   resetSimulation: () => void;
   setSpeed: (s: SimSpeed) => void;
@@ -129,14 +132,21 @@ function buildAssignment(allPlayerNames: string[]): Map<string, string> {
 // Fetches the live scenario inside an error boundary so a missing/renamed
 // Convex function can never take down the demo — we just stay in stub mode.
 function LiveScenarioBridge({
+  productId,
   onData,
 }: {
+  productId?: Id<'products'>;
   onData: (d: LiveScenario | null | undefined) => void;
 }) {
-  const data = useQuery(api.launchTown.scenario.getLedgerly, {}) as
-    | LiveScenario
-    | null
-    | undefined;
+  const custom = useQuery(
+    api.launchTown.products.getScenario,
+    productId ? { productId } : 'skip',
+  ) as LiveScenario | null | undefined;
+  const ledgerly = useQuery(
+    api.launchTown.scenario.getLedgerly,
+    productId ? 'skip' : {},
+  ) as LiveScenario | null | undefined;
+  const data = productId ? custom : ledgerly;
   useEffect(() => {
     onData(data);
   }, [data, onData]);
@@ -193,8 +203,7 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const liveActive =
     !!liveScenario &&
     liveScenario.states.length > 0 &&
-    !!liveScenario.phase &&
-    liveScenario.phase.phase !== 'seeded';
+    (!!product?.convexId || (!!liveScenario.phase && liveScenario.phase.phase !== 'seeded'));
   const liveData = liveActive ? liveScenario : undefined;
 
   // UI tick for bars / stage transitions / pulse fade (Pixi layers animate
@@ -205,22 +214,16 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [clock.running, liveData]);
 
-  const seedLedgerly = useMutation(api.launchTown.scenario.seedLedgerly);
+  const persistProduct = useMutation(api.launchTown.products.create);
   const createProduct = useCallback(
     async (url: string) => {
       const entry: ProductEntry = { url, createdAt: Date.now() };
-      try {
-        // The foundation currently seeds the Ledgerly demo scenario; any URL
-        // creates the product entry, Ledgerly URLs get the seeded population.
-        const id = await seedLedgerly({});
-        if (typeof id === 'string') entry.convexId = id;
-      } catch {
-        // Backend not deployed/seeded — local stub keeps the flow unblocked.
-      }
+      const id = await persistProduct({ url });
+      entry.convexId = id;
       saveJson(PRODUCT_KEY, entry);
       setProduct(entry);
     },
-    [seedLedgerly],
+    [persistProduct],
   );
 
   const resetProduct = useCallback(() => {
@@ -343,6 +346,8 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
       simRunning: clock.running,
       simSeconds,
       speed: clock.speed,
+      productAnalysisStatus: liveScenario?.product?.analysisStatus,
+      productCategory: liveScenario?.product?.productModel?.category,
       startSimulation,
       resetSimulation,
       setSpeed,
@@ -357,6 +362,8 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
       resetProduct,
       clock.running,
       clock.speed,
+      liveScenario?.product?.analysisStatus,
+      liveScenario?.product?.productModel?.category,
       simSeconds,
       startSimulation,
       resetSimulation,
@@ -371,7 +378,10 @@ export function LaunchTownProvider({ children }: { children: ReactNode }) {
   return (
     <LaunchTownContext.Provider value={value}>
       <LiveBoundary>
-        <LiveScenarioBridge onData={setLiveScenario} />
+        <LiveScenarioBridge
+          productId={product?.convexId as Id<'products'> | undefined}
+          onData={setLiveScenario}
+        />
       </LiveBoundary>
       {children}
     </LaunchTownContext.Provider>

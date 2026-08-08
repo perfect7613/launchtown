@@ -46,6 +46,14 @@ export default function MetricsBar({
         <span className="truncate text-sm text-yellow-300 font-body" title={lt.product?.url}>
           {lt.product ? new URL(lt.product.url).hostname : '—'}
         </span>
+        {lt.productAnalysisStatus === 'pending' && (
+          <span className="whitespace-nowrap text-xs text-blue-300">Claude analyzing…</span>
+        )}
+        {lt.productAnalysisStatus === 'complete' && lt.productCategory && (
+          <span className="max-w-[180px] truncate text-xs text-green-300" title={lt.productCategory}>
+            ✓ {lt.productCategory}
+          </span>
+        )}
         <button
           className="text-xs text-clay-100/50 hover:text-white underline"
           onClick={lt.resetProduct}
