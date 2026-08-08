@@ -7,6 +7,9 @@ An isolated TypeScript package for LaunchTown's browser/cognition boundary:
   validates completed structured journey output.
 - `BrowserUseV2JourneyRunner` implements the same interface for free-tier V2
   tasks, with recording disabled and a conservative 20-step ceiling.
+- `BrowserbaseStagehandJourneyRunner` runs a direct-Anthropic Stagehand agent in
+  a five-minute Browserbase session, exposes its iframe-ready live view, and
+  explicitly releases the session after structured output is produced.
 - `ClaudeProductModelAnalyzer` fetches a public URL through Claude's server-side
   web-fetch tool and returns a strict Product Model.
 - `buildBrowserPrompt` creates a natural, social-context-aware browsing task.
@@ -22,6 +25,8 @@ Set these only in the server environment:
 ```sh
 BROWSER_USE_API_KEY=...
 ANTHROPIC_API_KEY=...
+BROWSERBASE_API_KEY=...
+BROWSERBASE_PROJECT_ID=...
 ```
 
 The live view URL is a credential. The runner returns it to the caller but does
@@ -33,7 +38,7 @@ One server-side flag selects the backend. It defaults to the fallback and does
 not construct a cloud client or consume credits:
 
 ```sh
-BROWSER_JOURNEY_MODE=fallback # fallback | v2 | v4
+BROWSER_JOURNEY_MODE=fallback # fallback | browserbase | v2 | v4
 ```
 
 ```ts

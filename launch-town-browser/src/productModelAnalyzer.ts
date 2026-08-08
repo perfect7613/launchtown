@@ -58,6 +58,7 @@ export class ClaudeProductModelAnalyzer implements ProductModelAnalyzer {
           citations: { enabled: true },
         },
       ],
+      tool_choice: { type: "tool", name: "web_fetch" },
       output_config: {
         format: zodOutputFormat(ProductModelAnalysisSchema),
       },
@@ -84,6 +85,9 @@ function parsePublicUrl(value: string): URL {
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("Product URL must be a valid HTTP or HTTPS URL.");
+  }
+  if (url.username || url.password) {
+    throw new Error("Product URL must not contain credentials.");
   }
   return url;
 }
