@@ -15,6 +15,7 @@ export interface BrowserRunHandle {
   runId: string;
   status: BrowserRunStatus;
   cursor: number;
+  sessionId?: string;
 }
 
 export interface BrowserRunUpdate extends BrowserRunHandle {
@@ -68,7 +69,7 @@ const TERMINAL_STATUSES: readonly BrowserRunStatus[] = [
   "cancelled",
 ];
 
-const STRUCTURED_OUTPUT_INSTRUCTION = `When you stop, return only one JSON object with exactly these fields and no markdown: {"outcome":"brief summary","pagesVisited":["URL or path"],"converted":false,"frictions":["observed friction"],"positiveSignals":["observed positive signal"],"trustDelta":0,"intentDelta":0,"shareLikelihood":0}. trustDelta and intentDelta must be numbers from -1 to 1. shareLikelihood must be a number from 0 to 1.`;
+export const BROWSER_JOURNEY_STRUCTURED_OUTPUT_INSTRUCTION = `When you stop, return only one JSON object with exactly these fields and no markdown: {"outcome":"brief summary","pagesVisited":["URL or path"],"converted":false,"frictions":["observed friction"],"positiveSignals":["observed positive signal"],"trustDelta":0,"intentDelta":0,"shareLikelihood":0}. trustDelta and intentDelta must be numbers from -1 to 1. shareLikelihood must be a number from 0 to 1.`;
 
 export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
   private readonly apiKey: string;
@@ -93,7 +94,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     const body = await this.request("/runs", {
       method: "POST",
       body: JSON.stringify({
-        task: `${taskPrompt.trim()}\n\n${STRUCTURED_OUTPUT_INSTRUCTION}`,
+        task: `${taskPrompt.trim()}\n\n${BROWSER_JOURNEY_STRUCTURED_OUTPUT_INSTRUCTION}`,
         model: this.model,
         browserSettings: {
           proxyCountryCode: "us",
@@ -238,6 +239,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
         runId: update.runId,
         status: update.status,
         cursor: update.cursor,
+        ...(update.sessionId ? { sessionId: update.sessionId } : {}),
       };
       await delay(pollIntervalMs, options.signal);
     }
