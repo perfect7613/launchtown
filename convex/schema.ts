@@ -12,6 +12,7 @@ import {
   residentStage,
   transferredBelief,
 } from './launchTown/validators';
+import { reportArtifactValidator } from './launchTown/reportArtifactValidator';
 
 export default defineSchema({
   messages: defineTable({
@@ -137,7 +138,21 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     lastClockAt: v.optional(v.number()),
     updatedAt: v.number(),
-  }).index('slug', ['slug']),
+  })
+    .index('slug', ['slug'])
+    .index('product', ['productId']),
+
+  launchReports: defineTable({
+    productId: v.id('products'),
+    status: v.union(v.literal('running'), v.literal('complete'), v.literal('failed')),
+    attempts: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    artifact: v.optional(reportArtifactValidator),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('product', ['productId']),
 
   ...agentTables,
   ...aiTownTables,

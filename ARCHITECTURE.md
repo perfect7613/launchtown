@@ -44,6 +44,11 @@ LaunchTown service and is scoped to one mounted product. Report tools expose que
 provider credentials and live-view URLs are excluded. The SDK's structured-output boundary is
 validated again by the service before the report artifact reaches the UI.
 
+Before a paid session starts, a transactional Convex gate verifies that the scenario is complete
+and grants one time-limited lease for the product. Concurrent requests reuse the in-flight state,
+completed reports are served from the persisted artifact, and failures have one server-owned retry.
+The gate mutations require `LAUNCH_REPORT_GATE_SECRET` in both the Convex and API environments.
+
 **Claude never writes state directly.** Claude produces semantic signals or a report draft;
 deterministic application code owns state transitions, and report assembly produces a separate
 read-only artifact.
