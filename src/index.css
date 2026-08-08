@@ -45,13 +45,45 @@ body {
 }
 
 .game-background {
-  background: linear-gradient(rgba(41, 41, 41, 0.8), rgba(41, 41, 41, 0.8)),
+  background: linear-gradient(rgba(13, 16, 37, 0.92), rgba(13, 16, 37, 0.92)),
     url(../assets/background.webp);
   background-blend-mode: hard-light;
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
   background-attachment: fixed;
+}
+
+/* LaunchTown dark panels (onboarding, metrics bar) */
+.lt-panel {
+  background: rgba(16, 19, 31, 0.92);
+  border: 2px solid #3a4466;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.lt-inspector {
+  background: #171a2b;
+}
+
+.lt-step {
+  background: rgba(58, 68, 102, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.35;
+}
+
+.lt-step-num {
+  display: inline-block;
+  width: 1.4em;
+  height: 1.4em;
+  line-height: 1.4em;
+  text-align: center;
+  border-radius: 9999px;
+  background: #facc15;
+  color: #000;
+  font-weight: bold;
+  margin-right: 6px;
 }
 
 .game-title {

@@ -5,5 +5,16 @@
       "source": "/ai-town/:match*",
       "destination": "/:match*"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-src 'self' https://live.browser-use.com https://*.browser-use.com;"
+        }
+      ]
+    }
   ]
 }

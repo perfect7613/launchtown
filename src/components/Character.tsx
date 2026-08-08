@@ -15,6 +15,8 @@ export const Character = ({
   emoji = '',
   isViewer = false,
   speed = 0.1,
+  ringColor,
+  isBrowsing = false,
   onClick,
 }: {
   // Path to the texture packed image.
@@ -35,6 +37,10 @@ export const Character = ({
   isViewer?: boolean;
   // The speed of the animation. Can be tuned depending on the side and speed of the NPC.
   speed?: number;
+  // LaunchTown: funnel-stage ring color drawn under the sprite.
+  ringColor?: number;
+  // LaunchTown: shows a 💻 indicator while the resident browses the product.
+  isBrowsing?: boolean;
   onClick: () => void;
 }) => {
   const [spriteSheet, setSpriteSheet] = useState<Spritesheet>();
@@ -85,6 +91,7 @@ export const Character = ({
 
   return (
     <Container x={x} y={y} interactive={true} pointerdown={onClick} cursor="pointer">
+      {ringColor !== undefined && <StageRing color={ringColor} />}
       {isThinking && (
         // TODO: We'll eventually have separate assets for thinking and speech animations.
         <Text x={-20} y={-10} scale={{ x: -0.8, y: 0.8 }} text={'💭'} anchor={{ x: 0.5, y: 0.5 }} />
@@ -104,9 +111,27 @@ export const Character = ({
       {emoji && (
         <Text x={0} y={-24} scale={{ x: -0.8, y: 0.8 }} text={emoji} anchor={{ x: 0.5, y: 0.5 }} />
       )}
+      {isBrowsing && (
+        <Text x={0} y={-26} scale={0.9} text={'💻'} anchor={{ x: 0.5, y: 0.5 }} />
+      )}
     </Container>
   );
 };
+
+// LaunchTown funnel-stage ring: an ellipse under the resident's feet.
+function StageRing({ color }: { color: number }) {
+  const draw = useCallback(
+    (g: PIXI.Graphics) => {
+      g.clear();
+      g.lineStyle(2.5, color, 0.95);
+      g.beginFill(color, 0.18);
+      g.drawEllipse(0, 13, 11, 4.5);
+      g.endFill();
+    },
+    [color],
+  );
+  return <Graphics draw={draw} />;
+}
 
 function ViewerIndicator() {
   const draw = useCallback((g: PIXI.Graphics) => {
