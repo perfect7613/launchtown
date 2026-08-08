@@ -4,6 +4,7 @@ import { reportArtifactValidator } from './reportArtifactValidator';
 import {
   decideGeneration,
   hasRequiredRecommendationCount,
+  latestRunAllowsReport,
   REPORT_LEASE_MS,
 } from './reportGenerationPolicy';
 
@@ -28,7 +29,7 @@ export const begin = mutation({
       .withIndex('product', (q) => q.eq('productId', productId))
       .order('desc')
       .collect();
-    if (!runs.some((run) => run.status === 'completed')) {
+    if (!latestRunAllowsReport(runs[0]?.status)) {
       return { state: 'not_ready' as const };
     }
 

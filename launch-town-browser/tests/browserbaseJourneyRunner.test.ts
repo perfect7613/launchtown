@@ -16,12 +16,15 @@ const output = {
   shareLikelihood: 0.2,
 };
 
-function client(sessionIds = ["session-1"]): BrowserbaseClient {
+function client(sessionIds = ["session-1"], statuses = ["RUNNING", "COMPLETED"]): BrowserbaseClient {
   let index = 0;
+  let statusIndex = 0;
   return {
     sessions: {
       create: vi.fn(async () => ({ id: sessionIds[index++]! })),
-      retrieve: vi.fn(async () => ({ status: "RUNNING" })),
+      retrieve: vi.fn(async () => ({
+        status: statuses[Math.min(statusIndex++, statuses.length - 1)]!,
+      })),
       update: vi.fn(async () => ({})),
     },
   };
@@ -86,7 +89,7 @@ describe("BrowserbaseStagehandJourneyRunner", () => {
 
     await expect(runner.waitForCompletion(handle)).resolves.toEqual({
       runId: "session-1",
-      sessionStatus: "RUNNING",
+      sessionStatus: "COMPLETED",
       output,
     });
     expect(driver.close).toHaveBeenCalledOnce();
@@ -95,6 +98,27 @@ describe("BrowserbaseStagehandJourneyRunner", () => {
       status: "REQUEST_RELEASE",
       projectId: "project-1",
     });
+  });
+
+  it("does not create a replacement session when a persona journey fails", async () => {
+    const browserbaseClient = client();
+    const driver: StagehandDriver = {
+      init: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockRejectedValue(new Error("journey failed")),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const runner = new BrowserbaseStagehandJourneyRunner({
+      browserbaseApiKey: "bb-key",
+      browserbaseProjectId: "project-1",
+      anthropicApiKey: "anthropic-key",
+      browserbaseClient,
+      stagehandDriverFactory: () => driver,
+    });
+    const handle = await runner.createRun("Browse naturally.", context("priya"));
+
+    await expect(runner.waitForCompletion(handle)).rejects.toThrow("journey failed");
+    expect(browserbaseClient.sessions.create).toHaveBeenCalledOnce();
+    expect(browserbaseClient.sessions.update).toHaveBeenCalledOnce();
   });
 
   it("rejects a session timeout above the plan cap", () => {

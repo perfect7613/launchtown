@@ -170,6 +170,7 @@ export class BrowserbaseStagehandJourneyRunner
       : timeoutSignal;
     let driver: StagehandDriver | undefined;
 
+    let output: BrowserJourneyOutput;
     try {
       driver = this.stagehandDriverFactory({
         browserbaseApiKey: this.browserbaseApiKey,
@@ -180,23 +181,23 @@ export class BrowserbaseStagehandJourneyRunner
         maxSteps: this.maxSteps,
       });
       await driver.init();
-      const output = parseOutput(
+      output = parseOutput(
         await driver.execute(run.taskPrompt, executionSignal),
       );
-      const retrieved = await this.browserbaseClient.sessions.retrieve(sessionId);
-      return {
-        ...run,
-        status: "completed",
-        terminal: true,
-        sessionStatus: requireSessionStatus(retrieved.status),
-        output,
-      };
     } finally {
       await Promise.allSettled([
         driver?.close() ?? Promise.resolve(),
         this.releaseSession(sessionId),
       ]);
     }
+    const sessionStatus = await this.retrieveFinalSessionStatus(sessionId);
+    return {
+      ...run,
+      status: "completed",
+      terminal: true,
+      sessionStatus,
+      output,
+    };
   }
 
   async waitForCompletion(
@@ -234,6 +235,19 @@ export class BrowserbaseStagehandJourneyRunner
       // Stagehand close also disconnects non-keepalive sessions. This second
       // release path is best-effort so cleanup cannot mask the journey result.
     }
+  }
+
+  private async retrieveFinalSessionStatus(sessionId: string) {
+    let status: ReturnType<typeof requireSessionStatus> = "RUNNING";
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const retrieved = await this.browserbaseClient.sessions.retrieve(sessionId);
+      status = requireSessionStatus(retrieved.status);
+      if (status !== "PENDING" && status !== "RUNNING") return status;
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+      }
+    }
+    return status;
   }
 
 }

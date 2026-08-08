@@ -7,6 +7,7 @@ import {
   simulationIsComplete,
 } from './simulationControl';
 import { World } from './world';
+import type { SerializedWorld } from './world';
 
 describe('simulation speed policy', () => {
   test('16x completes the eight-minute simulation in under one minute', () => {
@@ -50,15 +51,15 @@ describe('simulation speed policy', () => {
   });
 
   test('the full live simulation control shape survives a world round trip', () => {
-    const simulationControl = {
+    const simulationControl: NonNullable<SerializedWorld['simulationControl']> = {
       runId: 'run-live-shape',
       speed: 16 as const,
       startedAt: 1_000,
       elapsedSimulationMs: 240_000,
       lastSpeedChangedAt: 2_000,
       conversationStarts: 4,
-      participantIds: ['p:0', 'p:2'] as never[],
-      conversationPairs: [{ speakerId: 'p:0', peerId: 'p:2' }] as never[],
+      participantIds: ['p:0', 'p:2'],
+      conversationPairs: [{ speakerId: 'p:0', peerId: 'p:2' }],
     };
     const world = new World({
       nextId: 3,

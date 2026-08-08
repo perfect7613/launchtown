@@ -5,7 +5,6 @@ import { internalAction } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { fetchEmbedding } from '../util/llm';
-import { BrowserUseError } from '../../launch-town-browser/src/browserJourneyRunner';
 import type { BrowserJourneyRunner } from '../../launch-town-browser/src/browserJourneyRunner';
 import { buildBrowserPrompt } from '../../launch-town-browser/src/browserPromptBuilder';
 import {
@@ -17,7 +16,7 @@ import type { BrowserJourneyOutput, ProductModel } from '../../launch-town-brows
 import { createBrowserJourneyBackend } from '../../launch-town-browser/src/journeyBackend';
 import { isBrowserFallbackAllowed } from './browserRunPolicy';
 
-async function runLiveWithRetry(
+async function runLive(
   taskPrompt: string,
   runner: BrowserJourneyRunner,
   context: {
@@ -28,27 +27,15 @@ async function runLiveWithRetry(
   },
   onCreated: (sessionId: string, sessionStatus?: 'PENDING' | 'RUNNING' | 'ERROR' | 'TIMED_OUT' | 'COMPLETED') => Promise<void>,
 ) {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const handle = await runner.createRun(taskPrompt, context);
-      await onCreated(handle.sessionId ?? handle.runId, handle.sessionStatus);
-      const completed = await runner.waitForCompletion(handle, {
-        timeoutMs: 8 * 60 * 1_000,
-      });
-      return completed;
-    } catch (error) {
-      lastError = error;
-      const statusCode = error instanceof BrowserUseError ? error.statusCode : undefined;
-      if (statusCode && statusCode !== 429 && statusCode < 500) break;
-    }
-  }
-  throw lastError;
+  const handle = await runner.createRun(taskPrompt, context);
+  await onCreated(handle.sessionId ?? handle.runId, handle.sessionStatus);
+  return await runner.waitForCompletion(handle, {
+    timeoutMs: 8 * 60 * 1_000,
+  });
 }
 
 /**
- * Single integration boundary for visit decisions. Live browsing is opt-in and
- * hard-gated to Rohan; every resident has a validated fallback.
+ * Single integration boundary for an isolated per-persona browser journey.
  */
 export const runForResident = internalAction({
   args: {
@@ -118,7 +105,7 @@ export const runForResident = internalAction({
           browserRunId,
           status: 'running',
         });
-        const completed = await runLiveWithRetry(
+        const completed = await runLive(
           prompt,
           backend.runner,
           {
@@ -184,20 +171,6 @@ export const runForResident = internalAction({
       ...(source === 'fallback' ? { fallbackNotice: FALLBACK_JOURNEY_NOTICE } : {}),
       embedding,
     });
-    if (args.residentKey === 'rohan') {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.launchTown.influenceActions.extractConversationInfluence,
-        {
-          productId: args.productId,
-          conversationId: 'demo-rohan-meera',
-          speaker: 'rohan',
-          listener: 'meera',
-          transcript:
-            'Rohan: Priya was right about the early bank-access request, but I checked Ledgerly’s security page first and their documentation is actually solid. Meera: That makes me trust it more, though I still care about the price.',
-        },
-      );
-    }
     return { browserRunId, source };
   },
 });

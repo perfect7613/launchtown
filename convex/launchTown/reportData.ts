@@ -37,8 +37,8 @@ export const getBrowserRuns = query({
       .withIndex('product', (q) => q.eq('productId', productId))
       .order('desc')
       .collect();
-    const latestCompleted = simulationRuns.find((run) => run.status === 'completed');
-    if (!latestCompleted) return [];
+    const latestCompleted = simulationRuns[0];
+    if (!latestCompleted || latestCompleted.status !== 'completed') return [];
     const runs = await ctx.db
       .query('browserRuns')
       .withIndex('product', (q) => q.eq('productId', productId))
@@ -66,8 +66,8 @@ export const getSimulationRun = query({
       .withIndex('product', (q) => q.eq('productId', productId))
       .order('desc')
       .collect();
-    const run = runs.find((candidate) => candidate.status === 'completed');
-    if (!run) return null;
+    const run = runs[0];
+    if (!run || run.status !== 'completed') return null;
     return {
       runId: run.runId,
       status: run.status,
