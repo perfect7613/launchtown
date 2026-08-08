@@ -4,7 +4,6 @@ import { createClaudeReportAgent } from './_lib/claudeReportAgent';
 import { createConvexReportRepository } from './_lib/convexReportRepository';
 import { createReportToolHandlers } from './_lib/reportTools';
 import { generateReportArtifact } from '../src/launchReport/report';
-import { renderLaunchReportPdf } from '../src/launchReport/pdf';
 
 const requestSchema = z.object({
   productId: z.string().min(1).max(128),
@@ -32,6 +31,7 @@ async function sendPdf(
   productId: string,
   artifact: Awaited<ReturnType<typeof generateReportArtifact>>,
 ) {
+  const { renderLaunchReportPdf } = await import('../src/launchReport/pdf');
   const [simulationRun, browserRuns, residentStates, influenceEvents] = await Promise.all([
     repository.getSimulationRun(productId),
     repository.getBrowserRuns(productId),

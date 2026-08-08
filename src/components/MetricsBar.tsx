@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import LaunchReportPanel from './LaunchReportPanel';
+import { startSimulationInOrder } from '../launchtown/simulationStartOrder';
 
 const STAGE_DOTS: Record<string, string> = {
   unaware: '⚪',
@@ -46,6 +47,7 @@ export default function MetricsBar({
   const lt = useLaunchTown();
   const [changing, setChanging] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string>();
+  const [startError, setStartError] = useState<string>();
   const [showReport, setShowReport] = useState(false);
   const startSimulationControl = useSendInput(engineId, 'startSimulationControl');
   const setSimulationControlSpeed = useSendInput(engineId, 'setSimulationControlSpeed');
@@ -53,9 +55,7 @@ export default function MetricsBar({
     api.launchTown.browserOrchestration.runAllPersonaJourneys,
   );
   const beginSimulationRun = useMutation(api.launchTown.simulationLifecycle.begin);
-  const completeSimulationRun = useMutation(
-    api.launchTown.simulationLifecycle.completeSimulation,
-  );
+  const completeSimulationRun = useMutation(api.launchTown.simulationLifecycle.completeSimulation);
   const productId = lt.product?.convexId as Id<'products'> | undefined;
   const latestRun = useQuery(
     api.launchTown.simulationLifecycle.latest,
@@ -65,20 +65,38 @@ export default function MetricsBar({
 
   const start = async () => {
     setChanging(true);
+    setStartError(undefined);
     try {
       const simulationRunId = crypto.randomUUID();
-      if (productId) {
-        await beginSimulationRun({ productId, runId: simulationRunId, speed: lt.speed });
-      }
-      await startSimulationControl({ speed: lt.speed, runId: simulationRunId });
-      setActiveRunId(simulationRunId);
-      lt.startSimulation();
-      if (productId) {
-        void runAllPersonaJourneys({
-          productId,
-          simulationRunId,
-        });
-      }
+      await startSimulationInOrder({
+        beginRun: async () => {
+          if (productId) {
+            await beginSimulationRun({ productId, runId: simulationRunId, speed: lt.speed });
+          }
+        },
+        runBrowserJourneys: async () => {
+          if (productId) {
+            const browserPhase = await runAllPersonaJourneys({ productId, simulationRunId });
+            const failedPersonas = browserPhase.results
+              .filter((result) => result.source === 'error')
+              .map((result) => result.personaKey);
+            if (failedPersonas.length > 0) {
+              throw new Error(
+                `Browser journeys failed for ${failedPersonas.length} persona${failedPersonas.length === 1 ? '' : 's'}`,
+              );
+            }
+          }
+        },
+        startConversations: async () => {
+          await startSimulationControl({ speed: lt.speed, runId: simulationRunId });
+        },
+        startLocalClock: () => {
+          setActiveRunId(simulationRunId);
+          lt.startSimulation();
+        },
+      });
+    } catch (cause) {
+      setStartError(cause instanceof Error ? cause.message : 'Unable to start simulation');
     } finally {
       setChanging(false);
     }
@@ -116,7 +134,10 @@ export default function MetricsBar({
           <span className="whitespace-nowrap text-xs text-red-300">Analysis failed</span>
         )}
         {lt.productAnalysisStatus === 'complete' && lt.productCategory && (
-          <span className="max-w-[180px] truncate text-xs text-green-300" title={lt.productCategory}>
+          <span
+            className="max-w-[180px] truncate text-xs text-green-300"
+            title={lt.productCategory}
+          >
             ✓ {lt.productCategory}
           </span>
         )}
@@ -148,6 +169,11 @@ export default function MetricsBar({
 
       {/* Sim controls */}
       <div className="flex items-center gap-2 ml-auto">
+        {startError && (
+          <span className="max-w-[240px] text-xs text-red-300" role="alert">
+            {startError}
+          </span>
+        )}
         {!lt.simRunning ? (
           <button
             onClick={() => void start()}
