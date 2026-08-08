@@ -26,7 +26,7 @@ describe("getFallbackJourney", () => {
     const journey = getFallbackJourney("rohan");
 
     expect(journey?.output.pagesVisited[0]).toBe(
-      "https://ledgerly-demo.vercel.app/security",
+      "https://ledgerly-demo-six.vercel.app/security",
     );
     expect(journey?.output.trustDelta).toBeGreaterThan(0);
     expect(journey?.output.positiveSignals.join(" ")).toMatch(/security/i);
