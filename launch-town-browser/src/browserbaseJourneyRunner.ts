@@ -1,8 +1,10 @@
 import { Stagehand } from "@browserbasehq/stagehand";
+import Browserbase from "@browserbasehq/sdk";
 import { combineAbortSignals } from "./abortSignals.js";
 import {
   type BrowserJourneyRunner,
   type BrowserRunHandle,
+  type BrowserRunContext,
   type BrowserRunUpdate,
   type CompletedBrowserJourney,
   type WaitForCompletionOptions,
@@ -20,9 +22,17 @@ export interface BrowserbaseStagehandRunnerOptions {
   maxSteps?: number;
   sessionTimeoutSeconds?: number;
   executionTimeoutMs?: number;
-  baseUrl?: string;
-  fetch?: typeof fetch;
+  approvedVerificationDomains?: string[];
+  browserbaseClient?: BrowserbaseClient;
   stagehandDriverFactory?: StagehandDriverFactory;
+}
+
+export interface BrowserbaseClient {
+  sessions: {
+    create(params: Record<string, unknown>): Promise<{ id: string }>;
+    retrieve(id: string): Promise<{ status: string }>;
+    update(id: string, params: { status: "REQUEST_RELEASE"; projectId?: string }): Promise<unknown>;
+  };
 }
 
 export interface StagehandDriverConfig {
@@ -44,7 +54,6 @@ export type StagehandDriverFactory = (
   config: StagehandDriverConfig,
 ) => StagehandDriver;
 
-const DEFAULT_BASE_URL = "https://api.browserbase.com/v1";
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-6";
 const DEFAULT_SESSION_TIMEOUT_SECONDS = 300;
 const MAX_SESSION_TIMEOUT_SECONDS = 900;
@@ -61,8 +70,8 @@ export class BrowserbaseStagehandJourneyRunner
   private readonly maxSteps: number;
   private readonly sessionTimeoutSeconds: number;
   private readonly executionTimeoutMs: number;
-  private readonly baseUrl: string;
-  private readonly fetcher: typeof fetch;
+  private readonly approvedVerificationDomains: string[];
+  private readonly browserbaseClient: BrowserbaseClient;
   private readonly stagehandDriverFactory: StagehandDriverFactory;
 
   constructor(options: BrowserbaseStagehandRunnerOptions = {}) {
@@ -96,55 +105,52 @@ export class BrowserbaseStagehandJourneyRunner
     this.sessionTimeoutSeconds = sessionTimeoutSeconds;
     this.executionTimeoutMs =
       options.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
-    this.fetcher = options.fetch ?? globalThis.fetch;
+    this.approvedVerificationDomains = normalizeDomains(
+      options.approvedVerificationDomains ??
+        (process.env.BROWSERBASE_VERIFICATION_DOMAINS ?? "")
+          .split(",")
+          .filter(Boolean),
+    );
+    this.browserbaseClient =
+      options.browserbaseClient ??
+      (new Browserbase({ apiKey: this.browserbaseApiKey }) as BrowserbaseClient);
     this.stagehandDriverFactory =
       options.stagehandDriverFactory ?? createDefaultStagehandDriver;
   }
 
-  async createRun(taskPrompt: string): Promise<BrowserRunHandle> {
+  async createRun(taskPrompt: string, context?: BrowserRunContext): Promise<BrowserRunHandle> {
     if (!taskPrompt.trim()) throw new Error("A browser task prompt is required.");
+    if (!context) throw new Error("Browserbase run context is required.");
 
-    const session = asRecord(
-      await this.request("/sessions", {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: this.browserbaseProjectId,
-          timeout: this.sessionTimeoutSeconds,
-          keepAlive: false,
-          proxies: false,
-          browserSettings: {
-            recordSession: false,
-            logSession: false,
-          },
-        }),
-      }),
-      "create-session response",
-    );
+    const productDomain = domainFromUrl(context.productUrl);
+    const allowedDomains = normalizeDomains([
+      productDomain,
+      ...this.approvedVerificationDomains,
+    ]);
+
+    const session = await this.browserbaseClient.sessions.create({
+      projectId: this.browserbaseProjectId,
+      timeout: this.sessionTimeoutSeconds,
+      keepAlive: false,
+      proxies: false,
+      userMetadata: safeMetadata(context),
+      browserSettings: {
+        allowedDomains,
+        recordSession: false,
+        logSession: false,
+      },
+    });
     const sessionId = requireString(session.id, "Browserbase session id");
+    const retrieved = await this.browserbaseClient.sessions.retrieve(sessionId);
 
-    try {
-      const live = asRecord(
-        await this.request(`/sessions/${encodeURIComponent(sessionId)}/debug`),
-        "session-live response",
-      );
-      const liveViewUrl = requireSecureUrl(
-        live.debuggerFullscreenUrl,
-        "Browserbase live view URL",
-      );
-
-      return {
-        runId: sessionId,
-        sessionId,
-        status: "running",
-        cursor: 0,
-        liveViewUrl,
-        taskPrompt: taskPrompt.trim(),
-      };
-    } catch (error) {
-      await this.releaseSession(sessionId);
-      throw error;
-    }
+    return {
+      runId: sessionId,
+      sessionId,
+      status: "running",
+      cursor: 0,
+      sessionStatus: requireSessionStatus(retrieved.status),
+      taskPrompt: taskPrompt.trim(),
+    };
   }
 
   async pollRun(
@@ -177,10 +183,12 @@ export class BrowserbaseStagehandJourneyRunner
       const output = parseOutput(
         await driver.execute(run.taskPrompt, executionSignal),
       );
+      const retrieved = await this.browserbaseClient.sessions.retrieve(sessionId);
       return {
         ...run,
         status: "completed",
         terminal: true,
+        sessionStatus: requireSessionStatus(retrieved.status),
         output,
       };
     } finally {
@@ -195,10 +203,6 @@ export class BrowserbaseStagehandJourneyRunner
     run: BrowserRunHandle,
     options: WaitForCompletionOptions = {},
   ): Promise<CompletedBrowserJourney> {
-    if (run.liveViewUrl) {
-      await options.onBrowserReady?.(run.liveViewUrl);
-    }
-
     const timeoutMs = Math.min(
       options.timeoutMs ?? this.executionTimeoutMs,
       this.executionTimeoutMs,
@@ -215,20 +219,16 @@ export class BrowserbaseStagehandJourneyRunner
     }
     return {
       runId: update.runId,
-      ...(run.liveViewUrl ? { liveViewUrl: run.liveViewUrl } : {}),
+      ...(update.sessionStatus ? { sessionStatus: update.sessionStatus } : {}),
       output: update.output,
     };
   }
 
   private async releaseSession(sessionId: string): Promise<void> {
     try {
-      await this.request(`/sessions/${encodeURIComponent(sessionId)}`, {
-        method: "POST",
-        signal: AbortSignal.timeout(10_000),
-        body: JSON.stringify({
-          status: "REQUEST_RELEASE",
-          projectId: this.browserbaseProjectId,
-        }),
+      await this.browserbaseClient.sessions.update(sessionId, {
+        status: "REQUEST_RELEASE",
+        projectId: this.browserbaseProjectId,
       });
     } catch {
       // Stagehand close also disconnects non-keepalive sessions. This second
@@ -236,26 +236,6 @@ export class BrowserbaseStagehandJourneyRunner
     }
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
-    const response = await this.fetcher(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        "X-BB-API-Key": this.browserbaseApiKey,
-      },
-    });
-    if (!response.ok) {
-      throw new BrowserbaseJourneyError(
-        `Browserbase request failed with HTTP ${response.status}.`,
-        response.status,
-      );
-    }
-    try {
-      return (await response.json()) as unknown;
-    } catch {
-      throw new BrowserbaseJourneyError("Browserbase returned a non-JSON response.");
-    }
-  }
 }
 
 export class BrowserbaseJourneyError extends Error {
@@ -321,13 +301,6 @@ function parseOutput(value: unknown): BrowserJourneyOutput {
   return parsed.data;
 }
 
-function asRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new BrowserbaseJourneyError(`Invalid ${label}.`);
-  }
-  return value as Record<string, unknown>;
-}
-
 function requireString(value: unknown, label: string): string {
   if (typeof value !== "string" || !value) {
     throw new BrowserbaseJourneyError(`Invalid ${label}.`);
@@ -335,12 +308,33 @@ function requireString(value: unknown, label: string): string {
   return value;
 }
 
-function requireSecureUrl(value: unknown, label: string): string {
-  const url = requireString(value, label);
-  try {
-    if (new URL(url).protocol !== "https:") throw new Error();
-  } catch {
-    throw new BrowserbaseJourneyError(`Invalid ${label}.`);
+function domainFromUrl(value: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new BrowserbaseJourneyError("Product URL must use HTTP or HTTPS.");
   }
-  return url;
+  return url.hostname.toLowerCase();
+}
+
+function normalizeDomains(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim().toLowerCase()).filter((value) =>
+    /^[a-z0-9.-]+$/.test(value) && value.includes(".")
+  ))].sort();
+}
+
+function safeMetadata(context: BrowserRunContext): Record<string, string> {
+  const safe = (value: string) => value.replace(/[^a-zA-Z0-9_.:-]/g, "_").slice(0, 128);
+  return {
+    run: safe(context.simulationRunId),
+    product: safe(context.productId),
+    persona: safe(context.personaKey),
+  };
+}
+
+function requireSessionStatus(value: string) {
+  if (
+    value === "PENDING" || value === "RUNNING" || value === "ERROR" ||
+    value === "TIMED_OUT" || value === "COMPLETED"
+  ) return value;
+  throw new BrowserbaseJourneyError("Browserbase returned an invalid session status.");
 }

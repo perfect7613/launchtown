@@ -19,6 +19,21 @@ export interface BrowserRunHandle {
   sessionId?: string;
   liveViewUrl?: string;
   taskPrompt?: string;
+  sessionStatus?: BrowserbaseSessionStatus;
+}
+
+export type BrowserbaseSessionStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "ERROR"
+  | "TIMED_OUT"
+  | "COMPLETED";
+
+export interface BrowserRunContext {
+  simulationRunId: string;
+  productId: string;
+  productUrl: string;
+  personaKey: string;
 }
 
 export interface BrowserRunUpdate extends BrowserRunHandle {
@@ -32,6 +47,7 @@ export interface CompletedBrowserJourney {
   runId: string;
   liveViewUrl?: string;
   output: BrowserJourneyOutput;
+  sessionStatus?: BrowserbaseSessionStatus;
 }
 
 export interface WaitForCompletionOptions {
@@ -43,7 +59,7 @@ export interface WaitForCompletionOptions {
 }
 
 export interface BrowserJourneyRunner {
-  createRun(taskPrompt: string): Promise<BrowserRunHandle>;
+  createRun(taskPrompt: string, context?: BrowserRunContext): Promise<BrowserRunHandle>;
   pollRun(run: BrowserRunHandle, signal?: AbortSignal): Promise<BrowserRunUpdate>;
   waitForCompletion(
     run: BrowserRunHandle,

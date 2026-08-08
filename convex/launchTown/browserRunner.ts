@@ -15,19 +15,26 @@ import {
 import { interpretBrowserResult } from '../../launch-town-browser/src/resultInterpreter';
 import type { BrowserJourneyOutput, ProductModel } from '../../launch-town-browser/src/schemas';
 import { createBrowserJourneyBackend } from '../../launch-town-browser/src/journeyBackend';
+import { isBrowserFallbackAllowed } from './browserRunPolicy';
 
 async function runLiveWithRetry(
   taskPrompt: string,
   runner: BrowserJourneyRunner,
-  onReady: (runId: string, liveViewUrl: string) => Promise<void>,
+  context: {
+    simulationRunId: string;
+    productId: string;
+    productUrl: string;
+    personaKey: string;
+  },
+  onCreated: (sessionId: string, sessionStatus?: 'PENDING' | 'RUNNING' | 'ERROR' | 'TIMED_OUT' | 'COMPLETED') => Promise<void>,
 ) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const handle = await runner.createRun(taskPrompt);
+      const handle = await runner.createRun(taskPrompt, context);
+      await onCreated(handle.sessionId ?? handle.runId, handle.sessionStatus);
       const completed = await runner.waitForCompletion(handle, {
         timeoutMs: 8 * 60 * 1_000,
-        onBrowserReady: (liveViewUrl) => onReady(handle.runId, liveViewUrl),
       });
       return completed;
     } catch (error) {
@@ -48,6 +55,7 @@ export const runForResident = internalAction({
     productId: v.id('products'),
     residentKey: v.string(),
     objective: v.string(),
+    simulationRunId: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -62,6 +70,7 @@ export const runForResident = internalAction({
       internal.launchTown.browserRunModel.createBrowserRun,
       args,
     );
+    const simulationRunId = args.simulationRunId ?? crypto.randomUUID();
     const product: ProductModel = {
       url: context.product.url,
       category: context.product.productModel.category,
@@ -101,7 +110,9 @@ export const runForResident = internalAction({
     const backend = createBrowserJourneyBackend();
     let output: BrowserJourneyOutput | undefined;
     let source: 'live' | 'fallback' = 'fallback';
-    if (backend.kind === 'live' && args.residentKey === 'rohan') {
+    let sessionId: string | undefined;
+    let sessionStatus: 'PENDING' | 'RUNNING' | 'ERROR' | 'TIMED_OUT' | 'COMPLETED' | undefined;
+    if (backend.kind === 'live') {
       try {
         await ctx.runMutation(internal.launchTown.browserRunModel.updateBrowserRun, {
           browserRunId,
@@ -110,23 +121,49 @@ export const runForResident = internalAction({
         const completed = await runLiveWithRetry(
           prompt,
           backend.runner,
-          async (runId, liveViewUrl) => {
+          {
+            simulationRunId,
+            productId: String(args.productId),
+            productUrl: context.product.url,
+            personaKey: args.residentKey,
+          },
+          async (createdSessionId, createdStatus) => {
+            sessionId = createdSessionId;
+            sessionStatus = createdStatus;
             await ctx.runMutation(internal.launchTown.browserRunModel.updateBrowserRun, {
               browserRunId,
-              status: 'ready',
-              runId,
-              liveViewUrl,
+              status: 'running',
+              sessionId: createdSessionId,
+              sessionStatus: createdStatus,
+              source: 'live',
             });
           },
         );
         output = completed.output;
+        sessionStatus = completed.sessionStatus;
         source = 'live';
       } catch {
-        // The fallback is deliberately the default-safe path; live-view URLs and
-        // provider errors are not logged because they may contain credentials.
+        if (!isBrowserFallbackAllowed(context.product.slug)) {
+          await ctx.runMutation(internal.launchTown.browserRunModel.markBrowserRunFailed, {
+            browserRunId,
+            source: 'error',
+            sessionId,
+            sessionStatus,
+            fallbackNotice: 'Live browser journey failed; no cross-product fallback was used.',
+          });
+          throw new Error(`Live browser journey failed for ${args.residentKey}`);
+        }
       }
     }
     if (!output) {
+      if (!isBrowserFallbackAllowed(context.product.slug)) {
+        await ctx.runMutation(internal.launchTown.browserRunModel.markBrowserRunFailed, {
+          browserRunId,
+          source: 'error',
+          fallbackNotice: 'Live browser is unavailable; custom-product fallback is disabled.',
+        });
+        throw new Error(`Live browser is unavailable for ${args.residentKey}`);
+      }
       output =
         backend.kind === 'fallback'
           ? backend.getJourney(context.profile.name)?.output
@@ -141,6 +178,9 @@ export const runForResident = internalAction({
     await ctx.runMutation(internal.launchTown.browserRunModel.applyBrowserResult, {
       browserRunId,
       output,
+      source,
+      sessionId,
+      sessionStatus,
       ...(source === 'fallback' ? { fallbackNotice: FALLBACK_JOURNEY_NOTICE } : {}),
       embedding,
     });

@@ -32,19 +32,52 @@ export const getInfluenceEvents = query({
 export const getBrowserRuns = query({
   args: productArgs,
   handler: async (ctx, { productId }) => {
+    const simulationRuns = await ctx.db
+      .query('simulationRuns')
+      .withIndex('product', (q) => q.eq('productId', productId))
+      .order('desc')
+      .collect();
+    const latestCompleted = simulationRuns.find((run) => run.status === 'completed');
+    if (!latestCompleted) return [];
     const runs = await ctx.db
       .query('browserRuns')
       .withIndex('product', (q) => q.eq('productId', productId))
       .collect();
-    return runs.map((run) => ({
+    return runs.filter((run) => run.simulationRunId === latestCompleted.runId).map((run) => ({
       residentKey: run.residentKey,
       status: run.status,
+      sessionId: run.sessionId,
+      sessionStatus: run.sessionStatus,
+      source: run.source,
       objective: run.objective,
       result: run.result,
       fallbackNotice: run.fallbackNotice,
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     }));
+  },
+});
+
+export const getSimulationRun = query({
+  args: productArgs,
+  handler: async (ctx, { productId }) => {
+    const runs = await ctx.db
+      .query('simulationRuns')
+      .withIndex('product', (q) => q.eq('productId', productId))
+      .order('desc')
+      .collect();
+    const run = runs.find((candidate) => candidate.status === 'completed');
+    if (!run) return null;
+    return {
+      runId: run.runId,
+      status: run.status,
+      speed: run.speed,
+      coveredPersonaKeys: run.coveredPersonaKeys,
+      conversationEvidence: run.conversationEvidence,
+      startedAt: run.startedAt,
+      simulationCompletedAt: run.simulationCompletedAt,
+      completedAt: run.completedAt,
+    };
   },
 });
 

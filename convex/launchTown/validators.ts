@@ -47,6 +47,20 @@ export const browserResult = v.object({
   shareLikelihood: v.number(),
 });
 
+export const browserRunSource = v.union(
+  v.literal('live'),
+  v.literal('fallback'),
+  v.literal('error'),
+);
+
+export const browserSessionStatus = v.union(
+  v.literal('PENDING'),
+  v.literal('RUNNING'),
+  v.literal('ERROR'),
+  v.literal('TIMED_OUT'),
+  v.literal('COMPLETED'),
+);
+
 export const outboundCallStatus = v.union(
   v.literal('initiated'),
   v.literal('ringing'),

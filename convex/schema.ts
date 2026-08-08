@@ -14,6 +14,8 @@ import {
   productBelief,
   residentStage,
   safeCallFinding,
+  browserRunSource,
+  browserSessionStatus,
   transferredBelief,
 } from './launchTown/validators';
 import { reportArtifactValidator } from './launchTown/reportArtifactValidator';
@@ -114,6 +116,10 @@ export default defineSchema({
     productId: v.id('products'),
     residentKey: v.string(),
     runId: v.optional(v.string()),
+    simulationRunId: v.optional(v.string()),
+    sessionId: v.optional(v.string()),
+    sessionStatus: v.optional(browserSessionStatus),
+    source: v.optional(browserRunSource),
     status: v.union(
       v.literal('queued'),
       v.literal('stubbed'),
@@ -130,7 +136,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('product', ['productId'])
-    .index('product_resident', ['productId', 'residentKey']),
+    .index('product_resident', ['productId', 'residentKey'])
+    .index('simulation_persona', ['simulationRunId', 'residentKey']),
 
   outboundVoiceCalls: defineTable({
     productId: v.id('products'),
@@ -184,6 +191,30 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('product', ['productId']),
+
+  simulationRuns: defineTable({
+    productId: v.id('products'),
+    runId: v.string(),
+    speed: v.union(v.literal(1), v.literal(4), v.literal(16)),
+    status: v.union(
+      v.literal('running'),
+      v.literal('simulation_complete'),
+      v.literal('completed'),
+      v.literal('failed'),
+    ),
+    expectedPersonaKeys: v.array(v.string()),
+    coveredPersonaKeys: v.array(v.string()),
+    conversationEvidence: v.array(
+      v.object({ speaker: v.string(), peer: v.string() }),
+    ),
+    browserPhaseComplete: v.boolean(),
+    startedAt: v.number(),
+    simulationCompletedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    failureReason: v.optional(v.string()),
+  })
+    .index('run', ['runId'])
+    .index('product', ['productId']),
 
   launchTownSettings: defineTable({
     key: v.string(),

@@ -16,6 +16,7 @@ import {
   MIDPOINT_THRESHOLD,
   PLAYER_CONVERSATION_COOLDOWN,
 } from '../constants';
+import { conversationPolicy, simulationIsComplete } from './simulationControl';
 import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
 import { distance } from '../util/geometry';
@@ -54,6 +55,18 @@ export class Agent {
     if (!player) {
       throw new Error(`Invalid player ID ${this.playerId}`);
     }
+    const conversation = game.world.playerConversation(player);
+    const simulationComplete = !!(
+      game.world.simulationControl && simulationIsComplete(game.world.simulationControl, now)
+    );
+    if (simulationComplete && (conversation || this.inProgressOperation)) {
+      // A provider response may arrive after this point. Clearing the local
+      // operation makes the terminal state authoritative; the stale response
+      // cannot revive a completed conversation.
+      delete this.inProgressOperation;
+      if (conversation) conversation.stop(game, now);
+      return;
+    }
     if (this.inProgressOperation) {
       if (now < this.inProgressOperation.started + ACTION_TIMEOUT) {
         // Wait on the operation to finish.
@@ -62,7 +75,6 @@ export class Agent {
       console.log(`Timing out ${JSON.stringify(this.inProgressOperation)}`);
       delete this.inProgressOperation;
     }
-    const conversation = game.world.playerConversation(player);
     const member = conversation?.participants.get(player.id);
 
     const recentlyAttemptedInvite =
@@ -75,7 +87,12 @@ export class Agent {
     // If we aren't doing an activity or moving, do something.
     // If we have been wandering but haven't thought about something to do for
     // a while, do something.
-    if (!conversation && !doingActivity && (!player.pathfinding || !recentlyAttemptedInvite)) {
+    if (
+      !simulationComplete &&
+      !conversation &&
+      !doingActivity &&
+      (!player.pathfinding || !recentlyAttemptedInvite)
+    ) {
       this.startOperation(game, now, 'agentDoSomething', {
         worldId: game.worldId,
         player: player.serialize(),
@@ -101,6 +118,10 @@ export class Agent {
         conversationId: this.toRemember,
       });
       delete this.toRemember;
+      return;
+    }
+    if (simulationComplete) {
+      if (conversation) conversation.stop(game, now);
       return;
     }
     if (conversation && member) {
@@ -189,8 +210,14 @@ export class Agent {
           }
         }
         // See if the conversation has been going on too long and decide to leave.
-        const tooLongDeadline = started + MAX_CONVERSATION_DURATION;
-        if (tooLongDeadline < now || conversation.numMessages > MAX_CONVERSATION_MESSAGES) {
+        const policy = game.world.simulationControl
+          ? conversationPolicy(game.world.simulationControl.speed)
+          : {
+              maxDurationMs: MAX_CONVERSATION_DURATION,
+              maxMessages: MAX_CONVERSATION_MESSAGES,
+            };
+        const tooLongDeadline = started + policy.maxDurationMs;
+        if (tooLongDeadline < now || conversation.numMessages >= policy.maxMessages) {
           console.log(`${player.id} leaving conversation with ${otherPlayer.id}.`);
           const messageUuid = crypto.randomUUID();
           conversation.setIsTyping(now, player, messageUuid);
@@ -342,6 +369,8 @@ export const findConversationCandidate = internalQuery({
   },
   handler: async (ctx, { now, worldId, player, otherFreePlayers }) => {
     const { position } = player;
+    const world = await ctx.db.get(worldId);
+    const covered = new Set(world?.simulationControl?.participantIds ?? []);
     const candidates = [];
 
     for (const otherPlayer of otherFreePlayers) {
@@ -358,11 +387,27 @@ export const findConversationCandidate = internalQuery({
           continue;
         }
       }
-      candidates.push({ id: otherPlayer.id, position });
+      candidates.push({
+        id: otherPlayer.id,
+        position: otherPlayer.position,
+        covered: covered.has(otherPlayer.id),
+      });
+    }
+
+    const uncoveredCandidates = candidates.filter((candidate) => !candidate.covered);
+    if (covered.has(player.id) && uncoveredCandidates.length >= 2) {
+      // Leave the finite remaining conversation slots to two personas who
+      // have not participated yet; a covered persona can retry later.
+      return undefined;
     }
 
     // Sort by distance and take the nearest candidate.
-    candidates.sort((a, b) => distance(a.position, position) - distance(b.position, position));
+    candidates.sort(
+      (a, b) =>
+        Number(a.covered) - Number(b.covered) ||
+        distance(a.position, position) - distance(b.position, position) ||
+        a.id.localeCompare(b.id),
+    );
     return candidates[0]?.id;
   },
 });

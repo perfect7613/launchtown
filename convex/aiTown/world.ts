@@ -4,6 +4,10 @@ import { Player, serializedPlayer } from './player';
 import { Agent, serializedAgent } from './agent';
 import { GameId, parseGameId, playerId } from './ids';
 import { parseMap } from '../util/object';
+import {
+  SerializedSimulationControl,
+  serializedSimulationControl,
+} from './simulationControl';
 
 export const historicalLocations = v.array(
   v.object({
@@ -11,16 +15,6 @@ export const historicalLocations = v.array(
     location: v.bytes(),
   }),
 );
-
-const serializedSimulationControl = {
-  conversationStarts: v.number(),
-  elapsedSimulationMs: v.optional(v.number()),
-  lastSpeedChangedAt: v.optional(v.number()),
-  participantIds: v.array(playerId),
-  speed: v.number(),
-  startedAt: v.number(),
-};
-type SerializedSimulationControl = ObjectType<typeof serializedSimulationControl>;
 
 export const serializedWorld = {
   nextId: v.number(),
