@@ -38,6 +38,7 @@ initial visit is pre-baked so the demo starts at the first social handoff.
 - Chat and structured influence extraction: Anthropic Claude
 - Memory embeddings: OpenAI `text-embedding-3-small` (`1536` dimensions)
 - Browser journeys: the isolated `launch-town-browser` package
+- Resident voice interviews: Bolna Web Call SDK with live Convex state injected per call
 
 `BROWSER_JOURNEY_MODE` defaults to `fallback`, using the pre-computed journey catalog for a reliable
 demo. Setting it to `browserbase` enables the Browserbase + Stagehand adapter, but LaunchTown still
@@ -76,6 +77,22 @@ npx convex env set BROWSER_JOURNEY_MODE browserbase
 Do not enable the live mode for routine development or integration tests. The fallback route
 exercises the same persistence and result-interpretation boundary without consuming browser minutes.
 
+Optional resident voice interviews require server-only Bolna configuration in Convex:
+
+```sh
+npx convex env set BOLNA_API_KEY '<key>'
+npx convex env set BOLNA_AGENT_ID '<agent-id>'
+npx convex env set BOLNA_ALLOWED_ORIGINS 'https://your-launch-town.vercel.app'
+```
+
+The browser receives only a short-lived, single-use WebRTC session. The Bolna API key and full
+resident context remain server-side. Per-call context is capped below 50 KB and supplies the
+resident-interviewer variables `name`, `product`, `personality`, `beliefs`, `experiences`,
+`hearsay`, and `stage` from current Convex state.
+
+Voice conversations use Bolna's conversational stack; all LaunchTown simulation cognition and
+influence interpretation use Claude.
+
 ## Verification
 
 ```sh
@@ -92,6 +109,7 @@ npm --prefix launch-town-browser run build
 - `convex/launchTown/behavior.ts` — pure visit probability and action policy
 - `convex/launchTown/influenceActions.ts` — Claude extraction boundary
 - `convex/launchTown/browserRunner.ts` — Convex/browser integration boundary
+- `convex/launchTown/voiceModel.ts` — bounded live-state serialization for Bolna sessions
 - `convex/launchTown/scenario.ts` — Ledgerly seed, start, and scenario clock
 - `launch-town-browser/` — standalone browser runners, prompt builder, interpreter, and fallbacks
 
