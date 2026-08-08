@@ -44,12 +44,17 @@ test('serializes live resident context into the exact Bolna prompt variables', (
     'experiences',
     'hearsay',
     'name',
+    'opening_assessment',
     'personality',
     'product',
     'stage',
   ]);
   expect(result.name).toBe('Rohan');
   expect(result.product).toContain('Ledgerly');
+  expect(result.opening_assessment).toBe(
+    'My first take on Ledgerly: Checked security before signup. The security docs are solid.',
+  );
+  expect(result.opening_assessment).not.toContain('https://');
   expect(result.personality).toContain('technical fluency 95%');
   expect(result.beliefs).toContain('heard from Priya');
   expect(result.experiences).toContain('/security');

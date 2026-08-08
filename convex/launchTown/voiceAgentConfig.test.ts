@@ -1,33 +1,44 @@
 import {
   MAYA_RESEARCH_VOICE,
+  RESIDENT_INTERVIEWER_HANGUP_PROMPT,
   RESIDENT_INTERVIEWER_PROMPT,
   residentInterviewerAgentRequest,
 } from './voiceAgentConfig';
 
-test('uses the exact seven-variable resident interviewer prompt from the plan', () => {
-  expect(RESIDENT_INTERVIEWER_PROMPT)
-    .toBe(`You are {name}, a resident of a simulated town evaluating {product}.
-
-Personality: {personality}
-Current beliefs about the product: {beliefs}
-What you personally experienced on the website: {experiences}
-What you heard from other residents: {hearsay}
-Current stage: {stage}
-
-You are being interviewed by the product's founder. Answer honestly,
-only from your experiences and beliefs above. Do not invent events.
-Keep answers conversational and under 3 sentences.`);
+test('prompts for an evidence-led, responsive multi-turn website diagnosis', () => {
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain(
+    'Concrete opening assessment: {opening_assessment}',
+  );
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain(
+    'greeting already leads with the concrete opening assessment',
+  );
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('first impression');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('relevance to your needs and pain points');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('trust signals and friction');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('likely objections');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('specific improvements');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('ask one natural follow-up question');
+  expect(RESIDENT_INTERVIEWER_PROMPT).toContain('Do not close after answering one question');
 });
 
 test('uses the documented Indian-English female Maya Research voice', () => {
   const request = residentInterviewerAgentRequest();
 
   expect(request.agent_prompts.task_1.system_prompt).toBe(RESIDENT_INTERVIEWER_PROMPT);
+  expect(request.agent_config.agent_welcome_message).toBe("Hi, I'm {name}. {opening_assessment}");
   expect(request.agent_config.tasks[0].tools_config.llm_agent.llm_config).toEqual({
-    provider: 'anthropic',
-    model: 'claude-sonnet-5',
-    max_tokens: 150,
+    provider: 'openai',
+    family: 'openai',
+    model: 'gpt-4.1-mini',
+    base_url: 'https://api.openai.com/v1',
+    max_tokens: 300,
     temperature: 0.2,
+  });
+  expect(request.agent_config.tasks[0].task_config).toEqual({
+    call_terminate: 180,
+    hangup_after_silence: 20,
+    hangup_after_LLMCall: false,
+    call_cancellation_prompt: RESIDENT_INTERVIEWER_HANGUP_PROMPT,
   });
   expect(request.agent_config.tasks[0].tools_config.synthesizer).toEqual({
     provider: 'maya',
@@ -48,4 +59,14 @@ test('uses the documented Indian-English female Maya Research voice', () => {
       language: 'en',
     }),
   );
+});
+
+test('only permits prompt-driven hangup after explicit or complete closure', () => {
+  expect(RESIDENT_INTERVIEWER_HANGUP_PROMPT).toContain('explicitly asks to stop');
+  expect(RESIDENT_INTERVIEWER_HANGUP_PROMPT).toContain('clearly confirms they are satisfied');
+  expect(RESIDENT_INTERVIEWER_HANGUP_PROMPT).toContain('The full interview goal is complete');
+  expect(RESIDENT_INTERVIEWER_HANGUP_PROMPT).toContain(
+    'not complete merely because one question was answered',
+  );
+  expect(RESIDENT_INTERVIEWER_HANGUP_PROMPT).toContain('mid-conversation thanks');
 });
