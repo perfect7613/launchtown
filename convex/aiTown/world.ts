@@ -14,6 +14,8 @@ export const historicalLocations = v.array(
 
 const serializedSimulationControl = {
   conversationStarts: v.number(),
+  elapsedSimulationMs: v.optional(v.number()),
+  lastSpeedChangedAt: v.optional(v.number()),
   participantIds: v.array(playerId),
   speed: v.number(),
   startedAt: v.number(),
