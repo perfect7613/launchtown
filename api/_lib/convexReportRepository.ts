@@ -9,6 +9,7 @@ const getInfluenceEvents = makeFunctionReference<'query'>(
 const getBrowserRuns = makeFunctionReference<'query'>('launchTown/reportData:getBrowserRuns');
 const getResidentStates = makeFunctionReference<'query'>('launchTown/reportData:getResidentStates');
 const getMemories = makeFunctionReference<'query'>('launchTown/reportData:getMemories');
+const getSimulationRun = makeFunctionReference<'query'>('launchTown/reportData:getSimulationRun');
 const beginReportGeneration = makeFunctionReference<'mutation'>(
   'launchTown/reportGeneration:begin',
 );
@@ -45,6 +46,7 @@ export function createConvexReportRepository(
     getBrowserRuns: (productId) => client.query(getBrowserRuns, { productId }),
     getResidentStates: (productId) => client.query(getResidentStates, { productId }),
     getMemories: (productId) => client.query(getMemories, { productId }),
+    getSimulationRun: (productId) => client.query(getSimulationRun, { productId }),
     beginReportGeneration: (productId, leaseId) =>
       client.mutation(beginReportGeneration, { productId, leaseId, gateSecret }),
     completeReportGeneration: async (productId, leaseId, artifact) => {
