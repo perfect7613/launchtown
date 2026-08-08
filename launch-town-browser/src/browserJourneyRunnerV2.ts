@@ -97,14 +97,20 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
     };
   }
 
-  async pollRun(run: BrowserRunHandle): Promise<BrowserRunUpdate> {
+  async pollRun(
+    run: BrowserRunHandle,
+    signal?: AbortSignal,
+  ): Promise<BrowserRunUpdate> {
     const sessionId = run.sessionId;
     if (!sessionId) {
       throw new BrowserUseError("V2 run handle is missing its session id.");
     }
 
     const session = asRecord(
-      await this.request(`/sessions/${encodeURIComponent(sessionId)}`),
+      await this.request(
+        `/sessions/${encodeURIComponent(sessionId)}`,
+        signal ? { signal } : {},
+      ),
       "session response",
     );
     const liveViewUrl =
@@ -113,7 +119,10 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
         : undefined;
 
     const task = asRecord(
-      await this.request(`/tasks/${encodeURIComponent(run.runId)}/status`),
+      await this.request(
+        `/tasks/${encodeURIComponent(run.runId)}/status`,
+        signal ? { signal } : {},
+      ),
       "task-status response",
     );
     const status = mapV2Status(task.status);
@@ -156,12 +165,16 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
     const pollIntervalMs = options.pollIntervalMs ?? 1_000;
     const timeoutMs = options.timeoutMs ?? 15 * 60 * 1_000;
     const startedAt = Date.now();
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : timeoutSignal;
     let liveViewUrl: string | undefined;
     let run = initialRun;
 
     while (true) {
-      throwIfAborted(options.signal);
-      const update = await this.pollRun(run);
+      throwIfAborted(signal);
+      const update = await this.pollRun(run, signal);
       if (update.liveViewUrl && update.liveViewUrl !== liveViewUrl) {
         liveViewUrl = update.liveViewUrl;
         await options.onBrowserReady?.(liveViewUrl);
@@ -182,7 +195,7 @@ export class BrowserUseV2JourneyRunner implements BrowserJourneyRunner {
         throw new BrowserUseError("Timed out waiting for browser run completion.");
       }
       run = update;
-      await delay(pollIntervalMs, options.signal);
+      await delay(pollIntervalMs, signal);
     }
   }
 

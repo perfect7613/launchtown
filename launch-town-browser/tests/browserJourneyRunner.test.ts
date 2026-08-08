@@ -154,4 +154,19 @@ describe("BrowserUseJourneyRunner", () => {
       credential,
     );
   });
+
+  it("rejects event pagination when the cursor does not advance", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({ events: [], nextAfter: 0, hasMore: true }),
+    );
+    const runner = new BrowserUseJourneyRunner({
+      apiKey: "test-key",
+      fetch: fetcher,
+    });
+
+    await expect(
+      runner.pollRun({ runId: "run-1", status: "running", cursor: 0 }),
+    ).rejects.toThrow("Browser run event cursor did not advance.");
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
 });

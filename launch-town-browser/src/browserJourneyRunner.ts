@@ -16,6 +16,8 @@ export interface BrowserRunHandle {
   status: BrowserRunStatus;
   cursor: number;
   sessionId?: string;
+  liveViewUrl?: string;
+  taskPrompt?: string;
 }
 
 export interface BrowserRunUpdate extends BrowserRunHandle {
@@ -41,7 +43,7 @@ export interface WaitForCompletionOptions {
 
 export interface BrowserJourneyRunner {
   createRun(taskPrompt: string): Promise<BrowserRunHandle>;
-  pollRun(run: BrowserRunHandle): Promise<BrowserRunUpdate>;
+  pollRun(run: BrowserRunHandle, signal?: AbortSignal): Promise<BrowserRunUpdate>;
   waitForCompletion(
     run: BrowserRunHandle,
     options?: WaitForCompletionOptions,
@@ -63,6 +65,7 @@ interface RunEvent {
 
 const DEFAULT_BASE_URL = "https://api.browser-use.com/api/v4";
 const DEFAULT_MODEL = "grok-4.5";
+const MAX_EVENT_PAGES = 50;
 const TERMINAL_STATUSES: readonly BrowserRunStatus[] = [
   "completed",
   "failed",
@@ -111,15 +114,24 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     };
   }
 
-  async pollRun(run: BrowserRunHandle): Promise<BrowserRunUpdate> {
+  async pollRun(
+    run: BrowserRunHandle,
+    signal?: AbortSignal,
+  ): Promise<BrowserRunUpdate> {
     let cursor = run.cursor;
     let liveViewUrl: string | undefined;
     let hasMore = true;
+    let pages = 0;
 
     while (hasMore) {
+      if (pages++ >= MAX_EVENT_PAGES) {
+        throw new BrowserUseError("Too many browser run event pages.");
+      }
+      const cursorBefore = cursor;
       const page = asRecord(
         await this.request(
           `/runs/${encodeURIComponent(run.runId)}/events?after=${cursor}&limit=200`,
+          signal ? { signal } : {},
         ),
         "run-events response",
       );
@@ -138,10 +150,16 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
         cursor = Math.max(cursor, page.nextAfter);
       }
       hasMore = page.hasMore === true;
+      if (hasMore && cursor <= cursorBefore) {
+        throw new BrowserUseError("Browser run event cursor did not advance.");
+      }
     }
 
     const statusPayload = asRecord(
-      await this.request(`/runs/${encodeURIComponent(run.runId)}/status`),
+      await this.request(
+        `/runs/${encodeURIComponent(run.runId)}/status`,
+        signal ? { signal } : {},
+      ),
       "run-status response",
     );
     const status = requireStatus(statusPayload.status);
@@ -158,7 +176,10 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     }
 
     const summary = asRecord(
-      await this.request(`/runs/${encodeURIComponent(run.runId)}`),
+      await this.request(
+        `/runs/${encodeURIComponent(run.runId)}`,
+        signal ? { signal } : {},
+      ),
       "run-summary response",
     );
 
@@ -207,12 +228,16 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
     const pollIntervalMs = options.pollIntervalMs ?? 1_000;
     const timeoutMs = options.timeoutMs ?? 15 * 60 * 1_000;
     const startedAt = Date.now();
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : timeoutSignal;
     let liveViewUrl: string | undefined;
     let run = { ...initialRun, cursor: options.cursor ?? initialRun.cursor };
 
     while (true) {
-      throwIfAborted(options.signal);
-      const update = await this.pollRun(run);
+      throwIfAborted(signal);
+      const update = await this.pollRun(run, signal);
       if (update.liveViewUrl && update.liveViewUrl !== liveViewUrl) {
         liveViewUrl = update.liveViewUrl;
         await options.onBrowserReady?.(liveViewUrl);
@@ -241,7 +266,7 @@ export class BrowserUseJourneyRunner implements BrowserJourneyRunner {
         cursor: update.cursor,
         ...(update.sessionId ? { sessionId: update.sessionId } : {}),
       };
-      await delay(pollIntervalMs, options.signal);
+      await delay(pollIntervalMs, signal);
     }
   }
 
