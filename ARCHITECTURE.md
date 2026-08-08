@@ -8,6 +8,46 @@ if you're interested or running up against the engine's limitations.
 This doc assumes the reader has a working knowledge of Convex. If you're new to Convex, check out
 the [Convex tutorial](https://docs.convex.dev/get-started) to get started.
 
+## LaunchTown managed-agent flows
+
+LaunchTown follows the same trigger → session → mounted context → service-owned tools →
+deterministic application → artifact pattern for both resident cognition and founder reporting.
+Convex is the source of truth and the Claude boundary is explicit in both paths.
+
+```mermaid
+flowchart LR
+  subgraph Cognition[Resident cognition]
+    C1[Conversation or browser result] --> C2[Claude cognition session]
+    C2 --> C3[Mounted resident context<br/>profile · memories · beliefs]
+    C3 --> C4[Custom tools in our service<br/>read simulation evidence]
+    C4 --> C5[Semantic signals<br/>beliefs · influence · interpretation]
+    C5 --> C6[Deterministic state application]
+    C6 --> C7[Resident state + auditable events]
+  end
+
+  subgraph Report[Launch Report agent]
+    R1[Founder clicks Generate Launch Report] --> R2[Claude Agent SDK session]
+    R2 --> R3[Mounted product ID<br/>immutable simulation snapshot]
+    R3 --> R4[Custom tools in our service<br/>get_influence_events<br/>get_browser_runs<br/>get_resident_states<br/>get_memories]
+    R4 --> R5[Structured report schema]
+    R5 --> R6[Validated report assembly]
+    R6 --> R7[Founder report panel<br/>copy / download Markdown]
+  end
+
+  DB[(Convex)] --> C3
+  DB --> R4
+  C6 --> DB
+```
+
+The report session can iteratively request evidence, but every custom tool executes inside the
+LaunchTown service and is scoped to one mounted product. Report tools expose queries only; browser
+provider credentials and live-view URLs are excluded. The SDK's structured-output boundary is
+validated again by the service before the report artifact reaches the UI.
+
+**Claude never writes state directly.** Claude produces semantic signals or a report draft;
+deterministic application code owns state transitions, and report assembly produces a separate
+read-only artifact.
+
 ## Overview
 
 AI Town is split into a few layers:

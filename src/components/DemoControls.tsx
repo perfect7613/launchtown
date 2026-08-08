@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import LaunchReportPanel from './LaunchReportPanel';
 
 const speeds = [1, 4, 16] as const;
 
@@ -11,6 +12,7 @@ export default function DemoControls() {
   const setSimulationSpeed = useMutation(api.launchTown.scenario.setSimulationSpeed);
   const advanceClock = useMutation(api.launchTown.scenario.advanceScenarioClock);
   const [starting, setStarting] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
     if (
@@ -66,7 +68,21 @@ export default function DemoControls() {
         >
           {starting ? 'Starting…' : 'Start Simulation'}
         </button>
+        <button
+          type="button"
+          className="pointer-events-auto rounded bg-fuchsia-300 px-4 py-2 font-bold text-brown-900 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => setShowReport(true)}
+          disabled={!scenario || scenario.phase?.phase !== 'complete'}
+          title={
+            scenario?.phase?.phase === 'complete' ? undefined : 'Complete the simulation first'
+          }
+        >
+          Generate Launch Report
+        </button>
       </div>
+      {showReport && scenario?.product?._id && (
+        <LaunchReportPanel productId={scenario.product._id} onClose={() => setShowReport(false)} />
+      )}
     </section>
   );
 }
