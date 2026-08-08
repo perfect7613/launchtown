@@ -28,6 +28,7 @@ import {
   clamp01,
 } from './types';
 import { RESIDENTS, scenarioPulses, scenarioSnapshot } from './demoScenario';
+import { LEDGERLY_DEMO_URL, migrateStoredDemoProduct } from './demoProduct';
 import { LiveScenario, livePulses, liveSnapshots, liveMetrics } from './liveAdapter';
 
 const PRODUCT_KEY = 'launchtown.product';
@@ -69,16 +70,18 @@ function simSecondsOf(clock: SimClock, nowMs: number): number {
 // Demo deep-link (plan §7 "seeded scenario"): ?product=<url> pre-fills the
 // product entry and ?autostart=1 starts the scenario clock immediately, so
 // the whole cascade is reachable from a single bookmarked URL.
-function demoParams(): { productUrl?: string; autostart: boolean } {
+function demoParams(): { productUrl?: string; autostart: boolean; usesDefaultProduct: boolean } {
   try {
     const params = new URLSearchParams(window.location.search);
     let productUrl = params.get('product') ?? undefined;
+    let usesDefaultProduct = false;
     if (!productUrl && window.location.pathname.includes('/demo')) {
-      productUrl = 'https://ledgerly-demo.vercel.app';
+      productUrl = LEDGERLY_DEMO_URL;
+      usesDefaultProduct = true;
     }
-    return { productUrl, autostart: params.get('autostart') === '1' };
+    return { productUrl, autostart: params.get('autostart') === '1', usesDefaultProduct };
   } catch {
-    return { autostart: false };
+    return { autostart: false, usesDefaultProduct: false };
   }
 }
 
@@ -155,9 +158,13 @@ class LiveBoundary extends React.Component<{ children: ReactNode }, { failed: bo
 
 export function LaunchTownProvider({ children }: { children: ReactNode }) {
   const [product, setProduct] = useState<ProductEntry | undefined>(() => {
-    const stored = loadJson<ProductEntry>(PRODUCT_KEY);
-    if (stored) return stored;
-    const { productUrl } = demoParams();
+    const { productUrl, usesDefaultProduct } = demoParams();
+    const originalStored = loadJson<ProductEntry>(PRODUCT_KEY);
+    const stored = migrateStoredDemoProduct(originalStored, usesDefaultProduct);
+    if (stored) {
+      if (stored !== originalStored) saveJson(PRODUCT_KEY, stored);
+      return stored;
+    }
     if (productUrl) {
       const entry: ProductEntry = { url: productUrl, createdAt: Date.now() };
       saveJson(PRODUCT_KEY, entry);
