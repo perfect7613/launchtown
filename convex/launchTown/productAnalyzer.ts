@@ -8,11 +8,18 @@ import { ClaudeProductModelAnalyzer } from '../../launch-town-browser/src/produc
 export const analyzeProduct = internalAction({
   args: { productId: v.id('products'), url: v.string() },
   handler: async (ctx, args) => {
-    const productModel = await new ClaudeProductModelAnalyzer().analyze(args.url);
-    await ctx.runMutation(internal.launchTown.productModel.saveProductModel, {
-      productId: args.productId,
-      ...productModel,
-    });
-    return productModel;
+    try {
+      const productModel = await new ClaudeProductModelAnalyzer().analyze(args.url);
+      await ctx.runMutation(internal.launchTown.productModel.saveProductModel, {
+        productId: args.productId,
+        ...productModel,
+      });
+      return productModel;
+    } catch (error) {
+      await ctx.runMutation(internal.launchTown.productModel.markAnalysisFailed, {
+        productId: args.productId,
+      });
+      throw error;
+    }
   },
 });

@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
+import { normalizePublicProductUrl } from './productInput';
 
 export const saveProductModel = internalMutation({
   args: {
@@ -14,7 +15,7 @@ export const saveProductModel = internalMutation({
   handler: async (ctx, args) => {
     const { productId, cta, ...model } = args;
     await ctx.db.patch(productId, {
-      url: model.url,
+      url: normalizePublicProductUrl(model.url),
       analysisStatus: 'complete',
       productModel: {
         category: model.category,
@@ -24,5 +25,15 @@ export const saveProductModel = internalMutation({
         conversionProxy: model.conversionProxy,
       },
     });
+  },
+});
+
+export const markAnalysisFailed = internalMutation({
+  args: { productId: v.id('products') },
+  handler: async (ctx, { productId }) => {
+    const product = await ctx.db.get(productId);
+    if (product?.analysisStatus === 'running') {
+      await ctx.db.patch(productId, { analysisStatus: 'failed' });
+    }
   },
 });

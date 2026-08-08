@@ -8,7 +8,9 @@ export function normalizePublicProductUrl(value: string): string {
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
     throw new Error('Product URL must be a valid public HTTP or HTTPS URL');
   }
-  return url.href;
+  url.hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname.replace(/\/+$/, '');
+  return `${url.protocol}//${url.host}${pathname}`;
 }
 
 export function productIdentity(urlValue: string): { name: string; slug: string } {

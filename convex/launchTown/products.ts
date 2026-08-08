@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { mutation, query } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { residentSeeds } from '../../data/residents';
@@ -15,17 +15,39 @@ const INITIAL_STATE = {
   socialProof: 0,
   expectedFriction: 0.25,
 };
+const ANALYSIS_QUOTA_KEY = 'productAnalysisQuota';
+const MAX_PRODUCT_ANALYSES = 3;
 
 export const create = mutation({
   args: { url: v.string() },
   handler: async (ctx, args) => {
     const url = normalizePublicProductUrl(args.url);
-    const existing = await ctx.db
-      .query('products')
-      .filter((q) => q.eq(q.field('url'), url))
-      .first();
+    const products = await ctx.db.query('products').collect();
+    const existing = products.find(
+      (product) => normalizePublicProductUrl(product.url) === url,
+    );
     if (existing) {
+      if (existing.url !== url) await ctx.db.patch(existing._id, { url });
       if (existing.analysisStatus === 'pending') {
+        const quota = await ctx.db
+          .query('launchTownSettings')
+          .withIndex('key', (q) => q.eq('key', ANALYSIS_QUOTA_KEY))
+          .unique();
+        if (quota && quota.count >= quota.limit) {
+          throw new ConvexError({
+            code: 'PRODUCT_ANALYSIS_QUOTA_EXHAUSTED',
+            message: `This demo can analyze at most ${quota.limit} websites.`,
+          });
+        }
+        if (quota) await ctx.db.patch(quota._id, { count: quota.count + 1 });
+        else {
+          await ctx.db.insert('launchTownSettings', {
+            key: ANALYSIS_QUOTA_KEY,
+            count: 1,
+            limit: MAX_PRODUCT_ANALYSES,
+          });
+        }
+        await ctx.db.patch(existing._id, { analysisStatus: 'running' });
         await ctx.scheduler.runAfter(0, internal.launchTown.productAnalyzer.analyzeProduct, {
           productId: existing._id,
           url,
@@ -34,10 +56,28 @@ export const create = mutation({
       return existing._id;
     }
 
+    const quota = await ctx.db
+      .query('launchTownSettings')
+      .withIndex('key', (q) => q.eq('key', ANALYSIS_QUOTA_KEY))
+      .unique();
+    if (quota && quota.count >= quota.limit) {
+      throw new ConvexError({
+        code: 'PRODUCT_ANALYSIS_QUOTA_EXHAUSTED',
+        message: `This demo can analyze at most ${quota.limit} websites.`,
+      });
+    }
+    if (quota) await ctx.db.patch(quota._id, { count: quota.count + 1 });
+    else {
+      await ctx.db.insert('launchTownSettings', {
+        key: ANALYSIS_QUOTA_KEY,
+        count: 1,
+        limit: MAX_PRODUCT_ANALYSES,
+      });
+    }
     const productId = await ctx.db.insert('products', {
       ...productIdentity(url),
       url,
-      analysisStatus: 'pending',
+      analysisStatus: 'running',
     });
     const now = Date.now();
     for (const resident of residentSeeds) {

@@ -1,8 +1,10 @@
 import { normalizePublicProductUrl, productIdentity } from './productInput';
 
 test('normalizes a public product URL', () => {
-  expect(normalizePublicProductUrl('https://www.mayaresearch.ai')).toBe(
-    'https://www.mayaresearch.ai/',
+  expect(
+    normalizePublicProductUrl('https://WWW.MayaResearch.AI/?utm_source=demo#pricing'),
+  ).toBe(
+    'https://www.mayaresearch.ai',
   );
 });
 
