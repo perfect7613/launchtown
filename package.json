@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@browserbasehq/stagehand": "^3.7.1",
     "@pixi/react": "^7.1.0",
     "@tailwindcss/forms": "^0.5.3",
     "@types/node": "20.2.5",

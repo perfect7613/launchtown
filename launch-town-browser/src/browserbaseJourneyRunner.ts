@@ -1,4 +1,5 @@
 import { Stagehand } from "@browserbasehq/stagehand";
+import { combineAbortSignals } from "./abortSignals.js";
 import {
   type BrowserJourneyRunner,
   type BrowserRunHandle,
@@ -50,9 +51,7 @@ const MAX_SESSION_TIMEOUT_SECONDS = 900;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 4 * 60 * 1_000;
 
 /** Browserbase session + direct-Anthropic Stagehand implementation. */
-export class BrowserbaseStagehandJourneyRunner
-  implements BrowserJourneyRunner
-{
+export class BrowserbaseStagehandJourneyRunner implements BrowserJourneyRunner {
   private readonly browserbaseApiKey: string;
   private readonly browserbaseProjectId: string;
   private readonly anthropicApiKey: string;
@@ -84,7 +83,9 @@ export class BrowserbaseStagehandJourneyRunner
       sessionTimeoutSeconds <= 0 ||
       sessionTimeoutSeconds > MAX_SESSION_TIMEOUT_SECONDS
     ) {
-      throw new Error("Browserbase session timeout must be between 1 and 900 seconds.");
+      throw new Error(
+        "Browserbase session timeout must be between 1 and 900 seconds.",
+      );
     }
 
     this.browserbaseApiKey = browserbaseApiKey;
@@ -102,7 +103,8 @@ export class BrowserbaseStagehandJourneyRunner
   }
 
   async createRun(taskPrompt: string): Promise<BrowserRunHandle> {
-    if (!taskPrompt.trim()) throw new Error("A browser task prompt is required.");
+    if (!taskPrompt.trim())
+      throw new Error("A browser task prompt is required.");
 
     const session = asRecord(
       await this.request("/sessions", {
@@ -159,7 +161,7 @@ export class BrowserbaseStagehandJourneyRunner
 
     const timeoutSignal = AbortSignal.timeout(this.executionTimeoutMs);
     const executionSignal = signal
-      ? AbortSignal.any([signal, timeoutSignal])
+      ? combineAbortSignals(signal, timeoutSignal)
       : timeoutSignal;
     let driver: StagehandDriver | undefined;
 
@@ -204,7 +206,7 @@ export class BrowserbaseStagehandJourneyRunner
     );
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = options.signal
-      ? AbortSignal.any([options.signal, timeoutSignal])
+      ? combineAbortSignals(options.signal, timeoutSignal)
       : timeoutSignal;
     const update = await this.pollRun(run, signal);
     if (!update.output) {
@@ -235,7 +237,10 @@ export class BrowserbaseStagehandJourneyRunner
     }
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(
+    path: string,
+    init: RequestInit = {},
+  ): Promise<unknown> {
     const response = await this.fetcher(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -252,7 +257,9 @@ export class BrowserbaseStagehandJourneyRunner
     try {
       return (await response.json()) as unknown;
     } catch {
-      throw new BrowserbaseJourneyError("Browserbase returned a non-JSON response.");
+      throw new BrowserbaseJourneyError(
+        "Browserbase returned a non-JSON response.",
+      );
     }
   }
 }

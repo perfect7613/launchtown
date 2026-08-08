@@ -230,6 +230,13 @@ export const startSimulation = mutation({
       .withIndex('product', (q) => q.eq('productId', phase.productId))
       .collect();
     for (const event of previousEvents) await ctx.db.delete(event._id);
+    const previousRuns = await ctx.db
+      .query('browserRuns')
+      .withIndex('product', (q) => q.eq('productId', phase.productId))
+      .collect();
+    for (const run of previousRuns) {
+      if (run.runId !== 'demo-prebaked-priya') await ctx.db.delete(run._id);
+    }
     await ctx.db.patch(phase._id, {
       phase: 'priyaToRohan',
       elapsedSimulationMs: 0,

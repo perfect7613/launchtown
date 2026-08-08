@@ -1,3 +1,5 @@
+'use node';
+
 import { v } from 'convex/values';
 import { action } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
@@ -38,8 +40,8 @@ async function runLiveWithRetry(
 }
 
 /**
- * Single integration boundary for visit decisions. Live Browser Use is opt-in
- * while the V4 account gate returns 403; every resident has a validated fallback.
+ * Single integration boundary for visit decisions. Live browsing is opt-in and
+ * hard-gated to Rohan; every resident has a validated fallback.
  */
 export const runForResident = action({
   args: {
