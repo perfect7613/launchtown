@@ -26,7 +26,7 @@ export interface FallbackJourney {
   output: BrowserJourneyOutput;
 }
 
-const LEDGERLY = "https://ledgerly-demo.vercel.app";
+const LEDGERLY = "https://ledgerly-demo-six.vercel.app";
 
 const fallbackOutputs: Record<DemoResidentName, BrowserJourneyOutput> = {
   Priya: {

@@ -4,6 +4,7 @@ import { internal } from '../_generated/api';
 import { residentSeeds } from '../../data/residents';
 
 const LEDGERLY_SLUG = 'ledgerly';
+const LEDGERLY_URL = 'https://ledgerly-demo-six.vercel.app';
 const INITIAL_STATE = {
   awareness: 0,
   curiosity: 0.1,
@@ -61,13 +62,18 @@ export const seedLedgerly = mutation({
       .query('products')
       .withIndex('slug', (q) => q.eq('slug', LEDGERLY_SLUG))
       .unique();
-    if (existing) return existing._id;
+    if (existing) {
+      if (existing.url !== LEDGERLY_URL) {
+        await ctx.db.patch(existing._id, { url: LEDGERLY_URL });
+      }
+      return existing._id;
+    }
 
     const now = Date.now();
     const productId = await ctx.db.insert('products', {
       slug: LEDGERLY_SLUG,
       name: 'Ledgerly',
-      url: 'https://ledgerly-demo.vercel.app',
+      url: LEDGERLY_URL,
       analysisStatus: 'seeded',
       productModel: {
         category: 'Financial operations SaaS',
