@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { readReportApiResponse } from '../launchReport/apiResponse';
 import type { ReportArtifact } from '../launchReport/report';
 
 interface LaunchReportPanelProps {
@@ -69,11 +70,11 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productId }),
       });
-      const body = (await response.json()) as ReportArtifact | { error?: string };
+      const body = await readReportApiResponse(response);
       if (!response.ok || !('markdown' in body)) {
-        throw new Error('error' in body && body.error ? body.error : 'Unable to generate report');
+        throw new Error(typeof body.error === 'string' ? body.error : 'Unable to generate report');
       }
-      setReport(body);
+      setReport(body as unknown as ReportArtifact);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to generate report');
     } finally {
@@ -114,8 +115,8 @@ export default function LaunchReportPanel({ productId, onClose }: LaunchReportPa
         body: JSON.stringify({ productId, format: 'pdf' }),
       });
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? 'Unable to download PDF');
+        const body = await readReportApiResponse(response);
+        throw new Error(typeof body.error === 'string' ? body.error : 'Unable to download PDF');
       }
       const blobUrl = URL.createObjectURL(await response.blob());
       const anchor = document.createElement('a');
