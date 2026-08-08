@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Security — Ledgerly</title>
+  <meta name="description" content="How Ledgerly protects your financial data: SOC 2 Type II, AES-256 encryption at rest, TLS 1.3 in transit, read-only bank access via Plaid, and a clear data deletion policy." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d6e4f'/><path d='M10 8v13h12v3H7V8h3z' fill='white'/></svg>" />
+</head>
+<body>
+
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="logo" href="/">
+        <span class="logo-mark">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 4v13h10v3H4V4h3z" fill="#fff"/><path d="M12 4h3v9h-3z" fill="#d8f26b"/></svg>
+        </span>
+        Ledgerly
+      </a>
+      <nav class="nav-links">
+        <a href="/pricing">Pricing</a>
+        <a href="/security" class="active">Security</a>
+        <a href="/signup" class="btn btn-primary" style="padding:9px 18px;">Get started</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="page-head wrap">
+      <span class="eyebrow">Security &amp; Trust</span>
+      <h1>Your financial data, defended in depth.</h1>
+      <p>Ledgerly holds the most sensitive data a startup has. Here is — specifically and verifiably — how we protect it.</p>
+      <div class="badge-row">
+        <span class="trust-badge">🛡️ SOC 2 Type II attested</span>
+        <span class="trust-badge">🔐 AES-256 at rest · TLS 1.3 in transit</span>
+        <span class="trust-badge">🏦 Read-only bank access via Plaid</span>
+        <span class="trust-badge">🗑️ 30-day verified deletion</span>
+      </div>
+    </div>
+
+    <div class="prose wrap">
+
+      <section id="soc2">
+        <h2>🛡️ SOC 2 Type II</h2>
+        <p>Ledgerly maintains a <strong>SOC 2 Type II</strong> attestation covering the Security, Availability, and Confidentiality trust service criteria. Unlike a Type I snapshot, Type II means an independent auditor (Prescient Assurance) observed our controls operating effectively over a continuous 12-month audit window — most recently completed <strong>March 2026</strong>.</p>
+        <ul>
+          <li>Controls are monitored continuously via Vanta; drift triggers an engineering page, not a quarterly review.</li>
+          <li>The full audit report is available under NDA to any customer or prospect — email <a href="mailto:security@ledgerly.app">security@ledgerly.app</a> and we'll send it the same business day.</li>
+          <li>We also complete an annual third-party penetration test (most recently by Cure53, January 2026); an executive summary is available on request.</li>
+        </ul>
+      </section>
+
+      <section id="encryption">
+        <h2>🔐 Encryption, at rest and in transit</h2>
+        <h3>In transit</h3>
+        <ul>
+          <li>All traffic — browser to Ledgerly, and Ledgerly to every upstream provider — is encrypted with <strong>TLS 1.3</strong> (TLS 1.2 minimum, older protocols disabled).</li>
+          <li>HSTS is enforced with preloading; plaintext HTTP never serves content.</li>
+          <li>Internal service-to-service traffic is mutually authenticated (mTLS) inside a private VPC — nothing listens on the public internet except the load balancer.</li>
+        </ul>
+        <h3>At rest</h3>
+        <ul>
+          <li>All databases, object storage, and backups are encrypted with <strong>AES-256-GCM</strong>.</li>
+          <li>Encryption keys live in AWS KMS with automatic annual rotation; application servers never hold raw keys.</li>
+          <li>Especially sensitive fields (account numbers, aggregator tokens) are additionally encrypted at the application layer, so even a direct database compromise yields ciphertext.</li>
+        </ul>
+      </section>
+
+      <section id="bank-access">
+        <h2>🏦 Read-only bank access, via Plaid</h2>
+        <p>Ledgerly connects to your bank exclusively through <strong>Plaid</strong>, the same regulated aggregator used by Venmo, Robinhood, and thousands of financial institutions. This design has three properties worth being precise about:</p>
+        <ul>
+          <li><strong>We never see your banking credentials.</strong> You authenticate directly with your bank inside Plaid's flow. Your username and password are never transmitted to, stored by, or visible to Ledgerly — we receive only a scoped access token.</li>
+          <li><strong>Access is strictly read-only.</strong> The token Ledgerly holds is scoped to the <code>transactions</code> and <code>balances</code> products only. It cannot initiate payments, move money, or modify anything at your bank. There is no code path in our system that can move your funds.</li>
+          <li><strong>You can revoke it at any time.</strong> Disconnect from your Ledgerly settings, from your bank's connected-apps page, or via Plaid Portal — revocation takes effect immediately and we purge the token within minutes.</li>
+        </ul>
+        <div class="callout">
+          <strong>Why this matters:</strong> even in a worst-case, full-compromise scenario of Ledgerly's systems, an attacker could read transaction history but could not move a single dollar. We deliberately architected away the ability to touch your money.
+        </div>
+      </section>
+
+      <section id="deletion">
+        <h2>🗑️ Data deletion policy</h2>
+        <p>Your data is yours, and leaving is easy — we think lock-in via hostage data is a bug, not a retention strategy.</p>
+        <ul>
+          <li><strong>Self-serve export:</strong> download your complete ledger, attachments, and reports as CSV/PDF at any time, including after you cancel.</li>
+          <li><strong>Deletion on request:</strong> request deletion from settings or by emailing <a href="mailto:privacy@ledgerly.app">privacy@ledgerly.app</a>. Production data is hard-deleted within <strong>72 hours</strong>; encrypted backups age out completely within <strong>30 days</strong>. We send you written confirmation when both are complete.</li>
+          <li><strong>Automatic offboarding:</strong> if your subscription lapses, we retain data for 90 days (in case you return), then delete it on the same schedule above.</li>
+          <li><strong>Aggregator cleanup:</strong> deletion requests are propagated to Plaid so your item and its tokens are removed there too.</li>
+        </ul>
+      </section>
+
+      <section id="practices">
+        <h2>🧭 Operational security</h2>
+        <ul>
+          <li><strong>Access control:</strong> production access requires hardware-key MFA (FIDO2), is role-scoped, granted just-in-time, and every session is logged and reviewed. No standing admin access to customer data — support access requires your explicit, time-boxed consent.</li>
+          <li><strong>Infrastructure:</strong> hosted on AWS (us-east-1, with cross-region encrypted backups), infrastructure-as-code, immutable deploys, and audit logging shipped to a write-once store.</li>
+          <li><strong>Development:</strong> mandatory code review, dependency and secret scanning on every commit, and staging environments that never contain real customer data.</li>
+          <li><strong>People:</strong> background checks for all employees, security training at onboarding and annually, and offboarding that revokes all access within one hour.</li>
+        </ul>
+      </section>
+
+      <section id="disclosure">
+        <h2>📣 Vulnerability disclosure &amp; contact</h2>
+        <p>We want to hear from security researchers. If you believe you've found a vulnerability:</p>
+        <ul>
+          <li>Email <a href="mailto:security@ledgerly.app"><strong>security@ledgerly.app</strong></a> — PGP key and our full disclosure policy are published at <code>/.well-known/security.txt</code>.</li>
+          <li>We acknowledge reports within <strong>24 hours</strong>, triage within 72, and keep you updated through remediation. Good-faith research is protected under our safe-harbor policy.</li>
+        </ul>
+        <p>For anything else — audit reports, security questionnaires, DPAs, or a call with our security lead — email <a href="mailto:security@ledgerly.app">security@ledgerly.app</a>. Median first response is under 4 business hours.</p>
+      </section>
+
+    </div>
+
+    <section style="padding-top: 0;">
+      <div class="wrap">
+        <div class="cta-band">
+          <h2>Security questions answered. Books next.</h2>
+          <p>Connect a read-only bank feed and see your first reconciled ledger in minutes.</p>
+          <a href="/signup" class="btn btn-primary btn-lg">Get started free</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <span>© 2026 Ledgerly, Inc. All rights reserved.</span>
+      <nav class="foot-links">
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/security">Security</a>
+        <a href="/signup">Sign up</a>
+      </nav>
+    </div>
+  </footer>
+
+</body>
+</html>

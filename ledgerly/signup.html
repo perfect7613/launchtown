@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign up — Ledgerly</title>
+  <meta name="description" content="Create your Ledgerly account. Connect your bank to get started." />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230d6e4f'/><path d='M10 8v13h12v3H7V8h3z' fill='white'/></svg>" />
+</head>
+<body>
+
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="logo" href="/">
+        <span class="logo-mark">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 4v13h10v3H4V4h3z" fill="#fff"/><path d="M12 4h3v9h-3z" fill="#d8f26b"/></svg>
+        </span>
+        Ledgerly
+      </a>
+      <nav class="nav-links">
+        <a href="/pricing">Pricing</a>
+        <a href="/security">Security</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="signup-shell">
+
+      <div class="steps" id="stepper">
+        <span class="step active" data-step="1"><span class="dot">1</span> Connect bank</span>
+        <span class="step-bar"></span>
+        <span class="step" data-step="2"><span class="dot">2</span> Create account</span>
+        <span class="step-bar"></span>
+        <span class="step" data-step="3"><span class="dot">3</span> Done</span>
+      </div>
+
+      <!-- STEP 1: connect bank FIRST (intentional early-friction step) -->
+      <div class="panel" id="panel-1">
+        <h1>First, connect your bank account</h1>
+        <p class="lede">Ledgerly is built on your live transaction feed, so we start by linking your business bank account. Select your institution to continue — account setup comes next.</p>
+
+        <div class="bank-grid">
+          <button class="bank-btn" data-bank="Mercury"><span class="bank-ic" style="background:#5266eb;">M</span> Mercury</button>
+          <button class="bank-btn" data-bank="Brex"><span class="bank-ic" style="background:#f46a35;">B</span> Brex</button>
+          <button class="bank-btn" data-bank="Chase"><span class="bank-ic" style="background:#117aca;">C</span> Chase</button>
+          <button class="bank-btn" data-bank="SVB"><span class="bank-ic" style="background:#00a3e0;">S</span> SVB</button>
+          <button class="bank-btn" data-bank="Bank of America"><span class="bank-ic" style="background:#e31837;">BA</span> Bank of America</button>
+          <button class="bank-btn" data-bank="another bank"><span class="bank-ic" style="background:#43554c;">🔍</span> Search 12,000+ banks</button>
+        </div>
+
+        <div class="secure-note">
+          <span>🔒</span>
+          <span>Connections are read-only and made through <strong>Plaid</strong>. Ledgerly never sees your credentials and can never move money. Details on our <a href="/security">security page</a>.</span>
+        </div>
+      </div>
+
+      <!-- STEP 1b: fake Plaid-style connecting state -->
+      <div class="panel hidden center" id="panel-connecting">
+        <div style="margin: 24px 0;">
+          <span class="spinner" style="border-color: rgba(13,110,79,0.2); border-top-color: var(--brand); width: 40px; height: 40px;"></span>
+        </div>
+        <h1 style="font-size:1.3rem;">Connecting to <span id="bank-name">your bank</span>…</h1>
+        <p class="lede" style="margin-top:8px;">Establishing a secure, read-only link via Plaid.</p>
+      </div>
+
+      <!-- STEP 2: account creation (after bank) -->
+      <div class="panel hidden" id="panel-2">
+        <h1>Bank connected ✓ — now create your account</h1>
+        <p class="lede">Your <span id="bank-name-2">bank</span> feed is linked and syncing. Create your login to see your books.</p>
+        <form id="account-form">
+          <div class="field">
+            <label for="company">Company name</label>
+            <input id="company" name="company" type="text" placeholder="Acme, Inc." required />
+          </div>
+          <div class="field">
+            <label for="email">Work email</label>
+            <input id="email" name="email" type="email" placeholder="you@acme.com" required />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" placeholder="At least 8 characters" minlength="8" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="create-btn">Create my account</button>
+        </form>
+      </div>
+
+      <!-- STEP 3: success -->
+      <div class="panel hidden center" id="panel-3">
+        <div class="success-icon">✓</div>
+        <h1 style="font-size:1.5rem;">You're in! Your books are syncing.</h1>
+        <p class="lede" style="margin-top:8px;">We're importing your last 24 months of transactions from <span id="bank-name-3">your bank</span>. Your first reconciled ledger will be ready in a few minutes — we'll email you when it's done.</p>
+        <a href="/" class="btn btn-primary btn-lg">Back to home</a>
+        <p class="fine" style="margin-top:14px;">Your 14-day free trial has started. No charge until it ends.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <span>© 2026 Ledgerly, Inc. All rights reserved.</span>
+      <nav class="foot-links">
+        <a href="/">Home</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/security">Security</a>
+        <a href="/signup">Sign up</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var steps = document.querySelectorAll('#stepper .step');
+      function setStep(n) {
+        steps.forEach(function (s) {
+          var i = parseInt(s.dataset.step, 10);
+          s.classList.toggle('active', i === n);
+          s.classList.toggle('done', i < n);
+          if (i < n) s.querySelector('.dot').textContent = '✓';
+        });
+      }
+      function show(id) {
+        ['panel-1', 'panel-connecting', 'panel-2', 'panel-3'].forEach(function (p) {
+          document.getElementById(p).classList.toggle('hidden', p !== id);
+        });
+      }
+
+      document.querySelectorAll('.bank-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var bank = btn.dataset.bank;
+          document.getElementById('bank-name').textContent = bank;
+          document.getElementById('bank-name-2').textContent = bank;
+          document.getElementById('bank-name-3').textContent = bank;
+          show('panel-connecting');
+          setTimeout(function () {
+            setStep(2);
+            show('panel-2');
+            window.scrollTo({ top: 0 });
+          }, 1600);
+        });
+      });
+
+      document.getElementById('account-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = document.getElementById('create-btn');
+        btn.innerHTML = '<span class="spinner"></span>';
+        btn.disabled = true;
+        setTimeout(function () {
+          setStep(3);
+          show('panel-3');
+          window.scrollTo({ top: 0 });
+        }, 900);
+      });
+    })();
+  </script>
+
+</body>
+</html>
