@@ -5,12 +5,14 @@ import { serializeResidentVoiceContext } from './voiceContext';
 const LEDGERLY_SLUG = 'ledgerly';
 
 export const loadResidentVoiceUserData = internalQuery({
-  args: { residentKey: v.string() },
-  handler: async (ctx, { residentKey }) => {
-    const product = await ctx.db
-      .query('products')
-      .withIndex('slug', (q) => q.eq('slug', LEDGERLY_SLUG))
-      .unique();
+  args: { residentKey: v.string(), productId: v.optional(v.id('products')) },
+  handler: async (ctx, { residentKey, productId }) => {
+    const product = productId
+      ? await ctx.db.get(productId)
+      : await ctx.db
+          .query('products')
+          .withIndex('slug', (q) => q.eq('slug', LEDGERLY_SLUG))
+          .unique();
     if (!product) return null;
 
     const [profile, state, browserRuns] = await Promise.all([

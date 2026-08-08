@@ -38,8 +38,8 @@ result is a replayable launch narrative with an auditable causal ledger.
   friction; journey output must pass schema validation before reducers can apply it.
 - **Deterministic state transitions** — relationship strength, susceptibility, and pure reducers own
   every mutation and preserve the audit trail.
-- **Voice access to live residents** — the current demo creates a short-lived Bolna browser Web Call
-  session with bounded live resident context.
+- **Voice access to live residents** — Bolna calls a fixed, consented phone destination with bounded
+  live resident context; browser Web Call remains available as a fallback.
 - **Evidence-grounded Launch Reports** — a read-only, schema-validated Claude Agent SDK workflow
   reconciles influence events, browser runs, resident states, and memories into founder actions.
 
@@ -53,7 +53,8 @@ result is a replayable launch narrative with an auditable causal ledger.
    have `0.7`.
 4. Inspect a resident to see their traits, memories, current beliefs, and evidence behind the latest
    state change.
-5. Start a browser voice conversation with a resident through the current Bolna Web Call experience.
+5. Confirm the masked destination and ask a resident to call your phone, or use browser audio as a
+   fallback.
 6. When the simulation completes, generate the Launch Report to see evidence-linked frictions,
    belief propagation, resident outcomes, and three concrete website fixes.
 
@@ -100,7 +101,7 @@ flowchart LR
     ReportAgent["Claude Agent SDK<br/>read-only Launch Report"]
     Journey["Browser journey service<br/>live adapter or fallback catalog"]
     Guard["Schema validation<br/>and deterministic reducers"]
-    Bolna["Bolna Web Call<br/>Vobiz-backed outbound number configured"]
+    Bolna["Bolna voice<br/>Web Call + hosted Vobiz outbound"]
     Phone["User phone"]
     Persistence["Persistence<br/>Convex evidence and resident state"]
 
@@ -113,30 +114,30 @@ flowchart LR
     Persistence --> Convex
     Convex -->|"read-only MCP evidence"| ReportAgent
     ReportAgent -->|"schema-validated report"| UI
-    UI -->|"current browser Web Call"| Bolna
+    UI -->|"browser Web Call fallback"| Bolna
     Convex -->|"bounded resident context"| Bolna
-    Bolna -. "next: outbound trigger" .-> Phone
-    Phone -. "next: spoken interview" .-> Bolna
-    Bolna -. "next: completion persistence" .-> Guard
+    Bolna -->|"hosted outbound call"| Phone
+    Phone -->|"spoken interview"| Bolna
+    Bolna -->|"polled safe findings"| Guard
 ```
 
-Solid arrows describe the current application. Dashed arrows describe the configured outbound demo
-and its remaining integration work. Browser live-view URLs are credential-like and are never logged.
+Browser live-view URLs and Bolna session credentials are credential-like and are never logged.
 
-### Configured outbound demo / next integration
+### Hosted outbound resident interviews
 
-The Bolna dashboard agent is configured with Bolna's Vobiz-backed shared outbound number. The
-intended flow is:
+The Bolna agent uses Vobiz-backed centralized outbound calling. The browser never submits a phone
+number: it confirms a server-provided mask, and Convex reads the fixed E.164 destination from a
+server-only environment variable.
 
 ```text
 persona click -> E.164 phone call -> spoken interview -> structured result persistence
 ```
 
-Current `origin/main` implements the **browser Web Call session**. It does **not** yet implement the
-outbound-call trigger or a transcript/completion-return webhook. Those two steps, plus validated
-completion persistence, remain integration work. Availability or free use of a shared number depends
-on the Bolna/Vobiz account, current credits, and provider policy; the repository does not guarantee
-free outbound calling.
+Convex atomically permits only one active call, enforces a ten-minute cooldown and a six-call
+rolling daily cap, sends the same bounded seven-variable resident context to `POST /call`, and polls
+`GET /executions/{id}` to completion. It persists only lifecycle timestamps, duration, provider, and
+privacy-scrubbed structured findings. API credentials, full numbers, recording URLs, transcripts,
+and raw provider responses are never persisted or returned to the browser.
 
 ```mermaid
 sequenceDiagram
@@ -144,12 +145,14 @@ sequenceDiagram
     participant CX as Convex
     participant BV as Bolna / Vobiz
     participant P as User phone
-    UI-->>CX: Persona click + E.164 number (next)
-    CX-->>BV: Trigger outbound interview (remaining)
+    UI-->>CX: Consent + resident key
+    CX-->>CX: Fixed recipient + atomic rate limit
+    CX-->>BV: POST /call + bounded user_data
     BV-->>P: Place phone call
     P-->>BV: Spoken interview
-    BV-->>CX: Structured completion (remaining)
-    CX-->>CX: Validate, reduce, and persist
+    CX-->>BV: Poll execution status
+    BV-->>CX: Status + structured extraction
+    CX-->>CX: Sanitize and persist safe findings
 ```
 
 ## Local setup
@@ -189,17 +192,20 @@ same persistence and result-interpretation boundary without consuming browser mi
 `browserbase` mode, only the demo-critical resident Rohan runs live; other residents retain
 deterministic fallback data.
 
-For the current browser voice experience:
+For phone interviews and the browser voice fallback:
 
 ```sh
 npx convex env set BOLNA_API_KEY '<key>'
 npx convex env set BOLNA_AGENT_ID '<agent-id>'
 npx convex env set BOLNA_ALLOWED_ORIGINS 'https://your-launch-town.vercel.app'
+npx convex env set BOLNA_OUTBOUND_RECIPIENT_PHONE '<fixed-e164-destination>'
 ```
 
-The browser receives a short-lived, single-use WebRTC session. The API key and full resident context
-stay server-side. Per-call context is bounded and supplies `name`, `product`, `personality`,
-`beliefs`, `experiences`, `hearsay`, and `stage` from current Convex state.
+The browser receives only the masked destination and sanitized lifecycle state. The API key, full
+destination, execution details, and resident context stay server-side. Per-call context is bounded
+and supplies `name`, `product`, `personality`, `beliefs`, `experiences`, `hearsay`, and `stage` from
+current Convex state. Add an explicit localhost origin to `BOLNA_ALLOWED_ORIGINS` when testing
+locally; production does not implicitly trust localhost.
 
 ## Verification
 
@@ -259,6 +265,5 @@ Official Agent SDK references:
 
 ## Roadmap
 
-- Complete the outbound persona-click trigger and completion webhook with validated persistence.
 - Extend resident research with constrained Agent SDK sessions, Skills, and task-specific subagents.
 - Add more launch scenarios and product categories while preserving replayable causal evidence.

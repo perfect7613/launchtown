@@ -46,3 +46,46 @@ export const browserResult = v.object({
   intentDelta: v.number(),
   shareLikelihood: v.number(),
 });
+
+export const outboundCallStatus = v.union(
+  v.literal('initiated'),
+  v.literal('ringing'),
+  v.literal('in-progress'),
+  v.literal('completed'),
+  v.literal('failed'),
+);
+
+export const bolnaExecutionStatus = v.union(
+  v.literal('scheduled'),
+  v.literal('queued'),
+  v.literal('rescheduled'),
+  v.literal('initiated'),
+  v.literal('ringing'),
+  v.literal('in-progress'),
+  v.literal('call-disconnected'),
+  v.literal('completed'),
+  v.literal('balance-low'),
+  v.literal('busy'),
+  v.literal('no-answer'),
+  v.literal('canceled'),
+  v.literal('failed'),
+  v.literal('stopped'),
+  v.literal('error'),
+);
+
+export const outboundFailureCode = v.union(
+  v.literal('provider_rejected'),
+  v.literal('provider_unavailable'),
+  v.literal('poll_timeout'),
+  v.literal('balance_low'),
+  v.literal('busy'),
+  v.literal('no_answer'),
+  v.literal('canceled'),
+  v.literal('failed'),
+);
+
+export const safeCallFinding = v.object({
+  label: v.string(),
+  summary: v.string(),
+  confidence: v.optional(v.number()),
+});
